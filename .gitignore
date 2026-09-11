@@ -1,0 +1,7 @@
+node_modules/
+dist/
+build/
+release/
+*.log
+# Local troubleshooting notes, not part of the public source distribution.
+TERMINAL-HOTFIX.md
