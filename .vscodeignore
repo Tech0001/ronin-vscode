@@ -9,6 +9,7 @@
 !dist/sidebarView.js
 !dist/sidebarView.css
 !dist/ronin.svg
+!dist/ronin-icon.png
 !dist/licenses/@xterm-*.txt
 !dist/licenses/react.txt
 !dist/licenses/react-dom.txt

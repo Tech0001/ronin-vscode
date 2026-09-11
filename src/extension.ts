@@ -5,7 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { Lane } from './shared';
 import { quoteTerminalPaths, terminalFileTarget } from './terminalFiles';
-import { SHIFT_ENTER_SEQUENCE } from './terminalShortcuts';
+import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE } from './terminalShortcuts';
 import { TerminalServiceClient } from './terminalService/client';
 import { RemoteTerminal, ServiceEvent } from './terminalService/protocol';
 
@@ -260,6 +260,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('ronin.stopBackgroundTerminals', () => ronin.stopBackgroundTerminals().catch(e=>ronin.error(e))),
     vscode.commands.registerCommand('ronin.interrupt', () => { if (ronin.focusedId !== undefined) ronin.write(ronin.focusedId, '\x03'); }),
     vscode.commands.registerCommand('ronin.shiftEnter', () => { if (ronin.focusedId !== undefined) ronin.write(ronin.focusedId, SHIFT_ENTER_SEQUENCE); }),
+    // VS Code handles Escape at the workbench before the webview receives it.
+    // The terminal-scoped binding forwards the real key, not Ctrl+C or a kill.
+    vscode.commands.registerCommand('ronin.escape', () => { if (ronin.focusedId !== undefined) ronin.write(ronin.focusedId, ESCAPE_SEQUENCE); }),
     vscode.commands.registerCommand('ronin.copy', () => { if (ronin.focusedId !== undefined) ronin.send({ type: 'copyRequest', id: ronin.focusedId }); }),
     vscode.commands.registerCommand('ronin.paste', async () => { if (ronin.focusedId !== undefined) ronin.send({ type: 'paste', id: ronin.focusedId, data: await vscode.env.clipboard.readText() }); }),
     vscode.commands.registerCommand('ronin.newTerminal', () => ronin.add('terminal').catch(e => ronin.error(e))),

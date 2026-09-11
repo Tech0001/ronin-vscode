@@ -19,7 +19,7 @@ try{
   await post({...state,connection:'reconnecting'});
   await page.getByRole('status').waitFor();
   await page.evaluate(()=>{window.__messages=[];});await input.focus();
-  await page.keyboard.type('do-not-queue');await page.keyboard.press('Control+c');await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('do-not-queue');await page.keyboard.press('Control+c');await page.keyboard.press('Shift+Enter');await page.keyboard.press('Escape');
   assert.ok(!(await page.evaluate(()=>window.__messages)).some(m=>m.type==='input'));
   await post({...state,connection:'connected'});
   await page.getByRole('status').waitFor({state:'detached'});

@@ -39,6 +39,10 @@ try {
     await page.keyboard.press('Control+c');
     assert.deepEqual(await inputs(), [{ type: 'input', id: 2, data: '\x03' }]);
     await clear();
+    await page.keyboard.press('Escape');
+    assert.deepEqual(await inputs(), [{ type: 'input', id: 2, data: '\x1b' }], 'Escape reaches only the focused terminal exactly once');
+    assert.ok(await input.evaluate(el => el === document.activeElement), 'Escape does not abandon terminal focus');
+    await clear();
     const copyModifier = platform === 'MacIntel' ? 'Meta' : 'Control+Shift';
     await page.keyboard.press(`${copyModifier}+c`);
     await page.keyboard.press(`${copyModifier}+v`);
@@ -52,15 +56,17 @@ try {
     await clear();
     await page.keyboard.type('a'); await page.keyboard.press('Shift+Enter'); await page.keyboard.type('b');
     assert.equal(await page.locator('#test-field').inputValue(), 'a\nb');
+    await page.keyboard.press('Escape');
     assert.deepEqual(await inputs(), []);
 
     await post({ ...state, running: [] });
     await page.getByRole('button', { name: 'Start', exact: true }).first().waitFor();
     await input.focus(); await clear();
     await page.keyboard.press('Shift+Enter');
+    await page.keyboard.press('Escape');
     assert.deepEqual(await inputs(), [], 'a stopped terminal must not receive queued input');
     assert.deepEqual(errors, []);
-    console.log(`PASS ${platform}: Shift+Enter, plain Enter, focused lane, clipboard, Ctrl+C, text fields, stopped terminal`);
+    console.log(`PASS ${platform}: Escape, Shift+Enter, plain Enter, focused lane, clipboard, Ctrl+C, text fields, stopped terminal`);
     await page.close();
   }
 } finally { await browser.close(); }

@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { SHIFT_ENTER_SEQUENCE, terminalShortcut } from './terminalShortcuts';
+import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE, terminalShortcut } from './terminalShortcuts';
+import { readFileSync } from 'node:fs';
 const event = (key: string, ctrlKey = false, shiftKey = false, metaKey = false) => ({ key, ctrlKey, shiftKey, metaKey, altKey: false });
 it('uses Linux terminal interrupt/copy/paste shortcuts', () => {
   expect(terminalShortcut(event('c', true), false)).toBe('interrupt');
@@ -25,4 +26,23 @@ it('leaves plain Enter, other modifiers, and IME confirmation to xterm', () => {
   expect(terminalShortcut(event('Enter', false, true, true), true)).toBeNull();
   expect(terminalShortcut({ ...event('Enter', false, true), altKey: true }, false)).toBeNull();
   expect(terminalShortcut({ ...event('Enter', false, true), isComposing: true }, false)).toBeNull();
+});
+
+it.each([false, true])('forwards plain Escape as Escape, never Ctrl+C (mac=%s)', mac => {
+  expect(terminalShortcut(event('Escape'), mac)).toBe('escape');
+  expect(ESCAPE_SEQUENCE).toBe('\x1b');
+  expect(ESCAPE_SEQUENCE).not.toBe('\x03');
+  expect(terminalShortcut(event('Escape', true), mac)).toBeNull();
+  expect(terminalShortcut(event('Escape', false, true), mac)).toBeNull();
+  expect(terminalShortcut(event('Escape', false, false, true), mac)).toBeNull();
+  expect(terminalShortcut({ ...event('Escape'), altKey: true }, mac)).toBeNull();
+  expect(terminalShortcut({ ...event('Escape'), isComposing: true }, mac)).toBeNull();
+});
+
+it('registers Escape only for a focused Ronin terminal at the VS Code dispatch layer', () => {
+  const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  expect(manifest.contributes.keybindings.filter((binding: {key: string}) => binding.key === 'escape')).toEqual([{
+    command: 'ronin.escape', key: 'escape',
+    when: "activeWebviewPanelId == 'ronin.canvas' && webviewFocus && ronin.terminalFocused",
+  }]);
 });

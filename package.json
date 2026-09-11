@@ -2,7 +2,8 @@
   "name": "ronin-canvas",
   "displayName": "Ronin Canvas",
   "description": "A spatial terminal and agent workspace inside VS Code.",
-  "version": "0.5.1",
+  "version": "0.5.3",
+  "icon": "dist/ronin-icon.png",
   "publisher": "tech0001",
   "repository": {
     "type": "git",
@@ -58,6 +59,10 @@
         "title": "Ronin: Send Shift+Enter to Terminal"
       },
       {
+        "command": "ronin.escape",
+        "title": "Ronin: Send Escape to Terminal"
+      },
+      {
         "command": "ronin.copy",
         "title": "Ronin: Copy Terminal Selection"
       },
@@ -75,6 +80,11 @@
       }
     ],
     "keybindings": [
+      {
+        "command": "ronin.escape",
+        "key": "escape",
+        "when": "activeWebviewPanelId == 'ronin.canvas' && webviewFocus && ronin.terminalFocused"
+      },
       {
         "command": "ronin.shiftEnter",
         "key": "shift+enter",
@@ -150,7 +160,7 @@
     "test:terminals": "npm run build && node tests/terminal-service.mjs",
     "build:linux-pty": "node scripts/build-linux-pty.mjs",
     "vscode:prepublish": "npm run build",
-    "package": "npm run build:linux-pty && RONIN_PTY_BINARY=build/native/linux-x64/pty.node vsce package --no-dependencies --allow-missing-repository --out release/ronin-canvas-0.5.1-terminals-only-linux-x64.vsix --target linux-x64"
+    "package": "npm run build:linux-pty && RONIN_PTY_BINARY=build/native/linux-x64/pty.node vsce package --no-dependencies --allow-missing-repository --out release/ronin-canvas-0.5.3-terminals-only-linux-x64.vsix --target linux-x64"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

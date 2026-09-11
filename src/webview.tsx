@@ -4,7 +4,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { arrangeTerminalPanels, dropTerminalPanel } from './terminalLayout';
 import { Lane, CanvasState } from './shared';
-import { SHIFT_ENTER_SEQUENCE, terminalShortcut } from './terminalShortcuts';
+import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE, terminalShortcut } from './terminalShortcuts';
 import { hasTerminalFileData, terminalDropPaths } from './terminalDrop';
 import { currentTerminalTheme } from './terminalTheme';
 import { autoFitPanels } from './autoLayout';
@@ -41,6 +41,7 @@ function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolea
       if (event.type === 'keydown') {
         if (action === 'interrupt' && live.current) send({ type: 'input', id: lane.processId, data: '\x03' });
         if (action === 'shiftEnter' && live.current) send({ type: 'input', id: lane.processId, data: SHIFT_ENTER_SEQUENCE });
+        if (action === 'escape' && live.current) send({ type: 'input', id: lane.processId, data: ESCAPE_SEQUENCE });
         if (action === 'copy') send({ type: 'copy', id: lane.processId, text: term.getSelection() });
         if (action === 'paste') send({ type: 'pasteRequest', id: lane.processId });
       }

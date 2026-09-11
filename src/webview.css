@@ -27,7 +27,19 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
 .toolbar select { padding: 2px 4px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border-color: var(--vscode-dropdown-border, transparent); }
 .toolbar small { margin-left: 8px; color: var(--vscode-descriptionForeground); opacity: 1; }
 .toolbar button[aria-pressed=true], .toolbar button[aria-expanded=true], .ronin-sidebar button[aria-pressed=true] { background: var(--vscode-toolbar-activeBackground, var(--vscode-list-hoverBackground)); border-color: var(--vscode-contrastActiveBorder, transparent); color: var(--vscode-foreground); }
-.lane { border-radius: 4px; }
+.lane {
+  /* Panel/widget borders can be transparent or match the canvas. Derive a
+     visible edge from the theme's text/background instead, even when idle. */
+  --ronin-pane-border: color-mix(in srgb, var(--vscode-foreground) 45%, var(--vscode-editor-background));
+  border-radius: 4px;
+  border-color: var(--ronin-pane-border);
+  outline: 1px solid var(--vscode-contrastBorder, transparent);
+  outline-offset: -1px;
+}
+.lane:focus-within {
+  border-color: var(--vscode-focusBorder, var(--ronin-pane-border));
+  outline-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder, var(--ronin-pane-border)));
+}
 .lane-header { gap: 6px; height: 32px; padding: 3px 7px; font-size: 12px; }
 .lane-header small { white-space: nowrap; }
 .lane-header button { padding: 4px; }

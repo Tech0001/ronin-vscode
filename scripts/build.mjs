@@ -9,6 +9,7 @@ if (process.env.RONIN_PTY_BINARY) {
   await cp(process.env.RONIN_PTY_BINARY, 'dist/native/node-pty/build/Release/pty.node');
 }
 await cp('src/ronin.svg', 'dist/ronin.svg');
+await cp('src/ronin-icon.png', 'dist/ronin-icon.png');
 await mkdir('dist/licenses', { recursive: true });
 for (const name of ['@xterm/xterm', '@xterm/addon-fit', 'react', 'react-dom', 'scheduler', 'node-pty']) {
   const license=(await readdir(`node_modules/${name}`)).find(file=>/^license(?:\.md|\.txt)?$/i.test(file));
