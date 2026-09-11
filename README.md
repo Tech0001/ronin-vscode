@@ -21,7 +21,13 @@ Every panel is a normal shell. Use your own CLI tools and agent accounts while k
 
 ## Get started
 
-Install the `.vsix` using **Extensions: Install from VSIX…**, open a trusted workspace, and run **Ronin: Open Canvas** from the Command Palette. Add a terminal or agent panel and press Start.
+**[Download for Mac (Apple Silicon)](https://github.com/Tech0001/ronin-vscode/releases/download/v0.5.4/ronin-canvas-0.5.4-darwin-arm64.vsix)** · [Release notes](https://github.com/Tech0001/ronin-vscode/releases/tag/v0.5.4)
+
+1. Download the `.vsix` installer above.
+2. In VS Code, open the Command Palette, run **Extensions: Install from VSIX…**, and select the downloaded file. Reload VS Code if prompted.
+3. Open a trusted workspace, select Ronin in the sidebar, and click **Open Canvas** at the bottom. Add a terminal or agent panel and press Start.
+
+You can also open the canvas with **Ronin: Open Canvas** in the Command Palette. The installer includes the native terminal components; no build tools are needed.
 
 **Build targets: Linux x64 and macOS (Apple Silicon and Intel).** The macOS port has been tested on Apple Silicon; Intel requires validation on an Intel Mac. Windows is not supported. Agent CLIs must be installed and authenticated separately.
 
