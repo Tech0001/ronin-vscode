@@ -31,5 +31,7 @@
 !dist/native/node-pty/lib/shared/conout.js
 !dist/native/node-pty/lib/worker/conoutSocketWorker.js
 !dist/native/node-pty/build/Release/pty.node
+!dist/native/node-pty/build/Release/spawn-helper
+!dist/native/ronin-helper
 dist/**/*.test.js
 dist/**/*.map

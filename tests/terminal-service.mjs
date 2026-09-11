@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,stat,rm} from 'node:fs/promises';
+import {mkdtemp,stat,rm,mkdir,writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
-import {join,resolve} from 'node:path';
+import {dirname,join,resolve} from 'node:path';
 import {fork} from 'node:child_process';
 import {createRequire} from 'node:module';
 import {createConnection} from 'node:net';
@@ -13,7 +13,7 @@ async function until(predicate,label){
   throw new Error('Timeout: '+label);
 }
 const print=text=>"printf '"+Buffer.from(text).toString('hex').replace(/../g,'\\x$&')+"\\n'";
-const root=await mkdtemp(join(tmpdir(),'ronin-svc-'));
+const root=await mkdtemp(join(process.platform==='darwin'?'/tmp':tmpdir(),'ronin-svc-'));
 const bundle=join(root,'client.cjs'),script=resolve('dist/terminalDaemon.js');
 await build({entryPoints:['src/terminalService/client.ts'],bundle:true,platform:'node',format:'cjs',outfile:bundle});
 const {TerminalServiceClient}=createRequire(import.meta.url)(bundle);
@@ -33,7 +33,7 @@ try{
   let output='',lastSeq=-1,snapshotSeen=false;
   const seen=[];
   client=new TerminalServiceClient(root,script,event=>{
-    if(event.event!=='output')return;
+    if(event.event!=='output'||event.id!==1)return;
     assert.ok(snapshotSeen,'snapshot delivered before live output');
     assert.ok(event.seq>lastSeq,'ordered output');lastSeq=event.seq;
     output+=event.data;seen.push(event.data);
@@ -92,6 +92,26 @@ try{
   assert.ok(started.every(s=>s.pid===started[0].pid));
   await client.kill(2);await until(async()=>!(await client.list()).find(s=>s.id===2).running,'second shell exits');
   console.log('PASS concurrent starts are idempotent');
+
+  if(process.platform==='darwin'){
+    // Exercise macOS's default shell and exact sysctl argv (including spaces).
+    const fixture=join(root,'agent fixtures/node_modules/@openai/codex/bin/codex.js');
+    await mkdir(dirname(fixture),{recursive:true});
+    await writeFile(fixture,'setInterval(() => {}, 1000);');
+    const quote=value=>"'"+value.replaceAll("'","'\\''")+"'";
+    const zsh=await client.start({id:3,cwd:root,shell:'/bin/zsh',env:{...process.env,ZDOTDIR:root}});
+    await client.write(3,`${quote(process.execPath)} ${quote(fixture)}\r`);
+    await until(async()=>(await client.list()).find(s=>s.id===3).agent==='Codex','macOS runtime-launched agent detection');
+    await client.write(3,'\x03');
+    await until(async()=>!(await client.list()).find(s=>s.id===3).agent,'agent exits back to zsh');
+    let zshOutput='';
+    await client.write(3,print('ZSH_RETURNS_AFTER_INTERRUPT')+'\r');
+    await until(async()=>{await client.attach(3,s=>{zshOutput=s.data;});return zshOutput.includes('ZSH_RETURNS_AFTER_INTERRUPT');},'zsh remains interactive');
+    await client.detach(3);
+    assert.equal((await client.list()).find(s=>s.id===3).pid,zsh.pid);
+    await client.kill(3);
+    console.log('PASS macOS zsh, runtime-launched agent detection with spaces, and interrupt');
+  }
 
   await client.detach(1);
   await client.write(1,"saved_tty=$(stty -g); stty raw -echo; printf '\\033[6n'; IFS= read -r -d R -t 3 reply; stty \"$saved_tty\"; if [[ $reply == $'\\e['*';'* ]]; then "+print('DETACHED_QUERY_OK')+'; else '+print('DETACHED_QUERY_FAILED')+'; fi\r');

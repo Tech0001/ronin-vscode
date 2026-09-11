@@ -45,7 +45,7 @@ exports.run = async () => {
   app.write(1,"printf '\\x49\\x4e\\x54\\x45\\x52\\x52\\x55\\x50\\x54_OK\\n'\r");
   await wait(()=>app.sessions.get(1)?.output.includes('INTERRUPT_OK'),'interrupt returns shell prompt');
   await app.message({type:'focus',id:1,focused:true});
-  app.write(1,"saved_tty=$(stty -g); stty raw -echo; printf '\\x45\\x53\\x43_READY\\n'; IFS= read -r -N 1 -t 5 escape_key; stty \"$saved_tty\"; printf '\\x45\\x53\\x43_BYTE_%d\\n' \"'$escape_key\"\r");
+  app.write(1,"saved_tty=$(stty -g); stty raw -echo; printf '\\x45\\x53\\x43_READY\\n'; IFS= read -r -n 1 -t 5 escape_key; stty \"$saved_tty\"; printf '\\x45\\x53\\x43_BYTE_%d\\n' \"'$escape_key\"\r");
   await wait(()=>app.sessions.get(1)?.output.includes('ESC_READY'),'raw terminal awaits Escape');
   await vscode.commands.executeCommand('ronin.escape');
   await wait(()=>app.sessions.get(1)?.output.includes('ESC_BYTE_27'),'Escape command sends byte 27 to the PTY');

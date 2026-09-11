@@ -13,7 +13,7 @@ interface Session {
   seq:number; pending:string; queued:number; timer?:NodeJS.Timeout; agent?:string;
 }
 const directory = process.argv[2];
-if (!directory || process.platform !== 'linux') throw new Error('Ronin terminal service requires a private Linux runtime directory.');
+if (!directory || !['linux','darwin'].includes(process.platform)) throw new Error('Ronin terminal service requires a private Linux or macOS runtime directory.');
 process.umask(0o077);
 const socketPath=join(directory,'service.sock');
 const sessions=new Map<number,Session>();

@@ -23,11 +23,14 @@ function Workspace() {
     return () => window.removeEventListener('message', receive);
   }, []);
   return <div className="native-workspace">
-    <div className="sidebar-create"><button onClick={() => send({ type: 'add', kind: 'terminal' })}><Icon name="plus"/>Terminal</button><button onClick={() => send({ type: 'add', kind: 'agent' })}><Icon name="agent"/>Agent</button></div>
-    <Sidebar native pinned={false} pin={() => {}} close={() => {}} data={data} lanes={lanes} running={running}
-      change={value => { setData(value); send({ type: 'sidebar', value }); }}
-      select={id => send({ type: 'selectLane', id })}
-      action={(type, id) => send({ type, id })}/>
+    <div className="sidebar-content">
+      <div className="sidebar-create"><button onClick={() => send({ type: 'add', kind: 'terminal' })}><Icon name="plus"/>Terminal</button><button onClick={() => send({ type: 'add', kind: 'agent' })}><Icon name="agent"/>Agent</button></div>
+      <Sidebar native pinned={false} pin={() => {}} close={() => {}} data={data} lanes={lanes} running={running}
+        change={value => { setData(value); send({ type: 'sidebar', value }); }}
+        select={id => send({ type: 'selectLane', id })}
+        action={(type, id) => send({ type, id })}/>
+    </div>
+    <div className="sidebar-footer"><button type="button" title="Open Ronin Canvas" onClick={() => send({ type: 'openCanvas' })}><Icon name="arrange"/>Open Canvas</button></div>
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<Workspace/>);

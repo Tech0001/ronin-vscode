@@ -2,7 +2,7 @@
   "name": "ronin-canvas",
   "displayName": "Ronin Canvas",
   "description": "A spatial terminal and agent workspace inside VS Code.",
-  "version": "0.5.3",
+  "version": "0.5.4",
   "icon": "dist/ronin-icon.png",
   "publisher": "tech0001",
   "repository": {
@@ -160,7 +160,7 @@
     "test:terminals": "npm run build && node tests/terminal-service.mjs",
     "build:linux-pty": "node scripts/build-linux-pty.mjs",
     "vscode:prepublish": "npm run build",
-    "package": "npm run build:linux-pty && RONIN_PTY_BINARY=build/native/linux-x64/pty.node vsce package --no-dependencies --allow-missing-repository --out release/ronin-canvas-0.5.3-terminals-only-linux-x64.vsix --target linux-x64"
+    "package": "node scripts/package.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "0.11.0",

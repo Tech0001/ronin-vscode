@@ -3,10 +3,11 @@ import { spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { mkdir, lstat, open, readFile, chmod, link, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { JsonLines, PROTOCOL, ServiceEvent, TerminalSnapshot, RemoteTerminal, StartTerminal } from './protocol';
 
-export function runtimeDirectory(key:string,root=tmpdir()){
+// macOS's per-user TMPDIR can exceed its 104-byte Unix socket path limit.
+export function runtimeDirectory(key:string,root=process.platform==='darwin'?'/tmp':tmpdir()){
   return join(root,'ronin-tty-'+(process.getuid?.()??'user')+'-'+createHash('sha256').update(key).digest('hex').slice(0,20));
 }
 interface Pending { resolve:(v:any)=>void; reject:(e:Error)=>void; timer:NodeJS.Timeout; receive?:(v:any)=>void; }
@@ -24,7 +25,8 @@ export class TerminalServiceClient {
     this.directory=runtimeDirectory(key,root);
   }
   private async prepare(){
-    if(process.platform!=='linux')throw new Error('Background terminal service currently supports Linux only.');
+    if(!['linux','darwin'].includes(process.platform))throw new Error('Background terminal service supports Linux and macOS only.');
+    if(process.platform==='darwin'&&Buffer.byteLength(join(this.directory,'service.sock'))>=104)throw new Error('Terminal service socket path is too long. Use a shorter runtime directory.');
     await mkdir(this.directory,{recursive:true,mode:0o700});
     const info=await lstat(this.directory);
     if(!info.isDirectory()||info.isSymbolicLink()||info.uid!==process.getuid!())throw new Error('Unsafe terminal service directory.');
@@ -54,7 +56,9 @@ export class TerminalServiceClient {
     catch(e:any){
       if(!['ENOENT','ECONNREFUSED'].includes(e.code))throw e;
       // Kernel lock prevents simultaneous reloads/windows from replacing a live service.
-      const child=spawn('/usr/bin/flock',['--nonblock',join(this.directory,'daemon.lock'),this.executable,this.script,this.directory],{
+      const launcher=process.platform==='darwin'?join(dirname(this.script),'native/ronin-helper'):'/usr/bin/flock';
+      const option=process.platform==='darwin'?'lock':'--nonblock';
+      const child=spawn(launcher,[option,join(this.directory,'daemon.lock'),this.executable,this.script,this.directory],{
         detached:true,stdio:'ignore',cwd:tmpdir(),env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}
       });
       child.on('error',()=>{});child.unref();

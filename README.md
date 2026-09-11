@@ -23,13 +23,13 @@ Every panel is a normal shell. Use your own CLI tools and agent accounts while k
 
 Install the `.vsix` using **Extensions: Install from VSIX…**, open a trusted workspace, and run **Ronin: Open Canvas** from the Command Palette. Add a terminal or agent panel and press Start.
 
-**Currently supports Linux x64. macOS and Windows support are not implemented yet.** Agent CLIs must be installed and authenticated separately.
+**Build targets: Linux x64 and macOS (Apple Silicon and Intel).** The macOS port has been tested on Apple Silicon; Intel requires validation on an Intel Mac. Windows is not supported. Agent CLIs must be installed and authenticated separately.
 
 Closing VS Code leaves your programs running. Use **Ronin: Stop Background Terminals** to stop them. Live sessions do not survive a reboot.
 
 ## Build
 
-On Linux x64, with Node.js/npm, Python 3, Make, a C++ compiler, and Docker available:
+On macOS, install Node.js/npm and the Xcode Command Line Tools (`xcode-select --install`). Use an arm64 Node.js installation for Apple Silicon or an x64 installation for Intel. On Linux x64, you also need Python 3, Make, a C++ compiler, and Docker.
 
 ```bash
 git clone https://github.com/Tech0001/ronin-vscode.git
@@ -38,7 +38,11 @@ npm ci
 npm run package
 ```
 
-The installable `.vsix` is created in `release/`. Docker is only needed to build the package, not to use it.
+The installable `.vsix` is created in `release/`, with the platform and architecture in its filename (for example, `ronin-canvas-0.5.4-darwin-arm64.vsix`). Each build targets the architecture of the Node.js process running it. Docker is only used for Linux packaging; macOS packages use node-pty's native prebuild and compile a small helper with the Xcode tools. End users do not need Node.js, Docker, or compilers.
+
+Run `npm test` for unit tests and `npm run test:terminals` for real terminal tests, including persistence, reconnection, resizing, and interrupt handling. On macOS, the terminal tests also cover zsh and agent detection.
+
+The macOS service uses a private directory under `/tmp` to stay within Unix socket path limits, and a native kernel lock to keep concurrent VS Code windows on the same service. Agent detection reads the foreground process arguments using macOS `sysctl`.
 
 ## License
 

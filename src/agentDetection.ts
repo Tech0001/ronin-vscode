@@ -1,4 +1,9 @@
 import { readFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { join } from 'node:path';
+
+const runFile = promisify(execFile);
 
 const agents: Record<string, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini', aider: 'Aider', opencode: 'OpenCode', goose: 'Goose', 'cursor-agent': 'Cursor' };
 export function agentFromArgv(argv: string[]): string | undefined {
@@ -16,8 +21,14 @@ export function agentFromArgv(argv: string[]): string | undefined {
 /** Read only this terminal's foreground group, never output text or shell history. */
 export async function foregroundAgent(shellPid: number, foregroundName: string): Promise<string | undefined> {
   const direct = agentFromArgv([foregroundName]);
-  if (direct || process.platform !== 'linux') return direct;
+  if (direct) return direct;
   try {
+    if (process.platform === 'darwin') {
+      // sysctl preserves argument boundaries, including paths containing spaces.
+      const { stdout } = await runFile(join(__dirname, 'native/ronin-helper'), ['foreground-argv', String(shellPid)], { timeout: 500, maxBuffer: 1024 * 1024 });
+      return agentFromArgv(stdout.split('\0').filter(Boolean));
+    }
+    if (process.platform !== 'linux') return;
     const stat = await readFile(`/proc/${shellPid}/stat`, 'utf8');
     const fields = stat.slice(stat.lastIndexOf(')') + 2).trim().split(/\s+/);
     const group = Number(fields[5]);

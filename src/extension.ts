@@ -27,6 +27,7 @@ export class Ronin {
     const subscriptions = [
       view.webview.onDidReceiveMessage(m => {
         if (m?.type === 'sidebarReady') { this.sidebarReady = true; void view.webview.postMessage({ type: 'state', ...this.state() }); return; }
+        if (m?.type === 'openCanvas') { this.open(); return; }
         if (!['sidebar', 'add', 'selectLane', 'edit', 'start', 'runAgent'].includes(m?.type)) return;
         void (async () => {
           if (['start', 'runAgent'].includes(m.type)) await this.message({ type: 'selectLane', id: m.id });
