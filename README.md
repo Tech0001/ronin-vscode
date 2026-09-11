@@ -6,6 +6,8 @@ Ronin Canvas puts interactive terminals in movable, resizable panels in the main
 
 Every panel is a normal shell. Use your own CLI tools and agent accounts while keeping VS Code's Explorer, editors, and Git tools available.
 
+![Ronin Canvas in VS Code with three agent terminals and the workspace sidebar](media/ronin-canvas.png)
+
 ## What it does
 
 - Move, resize, and arrange terminal panels, or let them automatically fit the available space.
