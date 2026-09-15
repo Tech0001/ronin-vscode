@@ -74,7 +74,21 @@ footer button { color: var(--vscode-descriptionForeground); padding: 2px 5px; wh
 @media (max-width: 600px) { .toolbar small { display: none; } }
 .native-workspace { height: 100%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); }
 .sidebar-content { flex: 1; min-height: 0; overflow: auto; }
-.sidebar-footer { flex-shrink: 0; padding: 6px 10px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border, transparent)); font-size: 12px; }
+.sidebar-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; flex-shrink: 0; padding: 6px 10px; border-top: 1px solid var(--vscode-sideBar-border, var(--vscode-panel-border, transparent)); font-size: 12px; }
+.sidebar-version { margin-left: auto; color: var(--vscode-descriptionForeground); font-size: 10px; white-space: nowrap; user-select: text; }
 .ronin-sidebar.native { width: 100%; padding-top: 6px; border: 0; overflow: visible; }
 .sidebar-create { display: flex; gap: 6px; padding: 8px 10px 2px; font-size: 12px; flex-wrap: wrap; }
 .connection-notice { flex-shrink: 0; padding: 6px 12px; font-size: 12px; color: var(--vscode-descriptionForeground); border-bottom: 1px solid var(--vscode-panel-border); }
+.file-preview { position: fixed; width: min(1100px, 92vw); height: min(800px, 86vh); max-width: 92vw; max-height: 86vh; padding: 0; border: 1px solid var(--vscode-editorWidget-border, var(--vscode-focusBorder, #777)); border-radius: 6px; color: var(--vscode-foreground, #ddd); background: var(--vscode-editor-background, #181818); box-shadow: 0 8px 32px var(--vscode-widget-shadow, #0008); }
+.file-preview[open] { display: flex; flex-direction: column; }
+.file-preview::backdrop { background: #0006; }
+.file-preview-header { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--vscode-panel-border, #777); flex-shrink: 0; }
+.file-preview-heading { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; font-size: 12px; }
+.file-preview-heading span { overflow-wrap: anywhere; color: var(--vscode-descriptionForeground); max-height: 5em; overflow: auto; }
+.file-preview-header button { flex-shrink: 0; font-size: 12px; }
+.file-preview-message { margin: 0; padding: 12px; font-size: 12px; }
+.file-preview-content { flex: 1; min-height: 0; overflow: auto; padding: 12px 0; font: 13px/1.6 var(--vscode-editor-font-family, monospace); tab-size: 4; }
+.file-preview-line { display: flex; width: max-content; min-width: 100%; padding-right: 16px; white-space: pre; }
+.file-preview-line.selected { background: var(--vscode-editor-lineHighlightBackground, #8882); outline: 1px solid var(--vscode-editor-lineHighlightBorder, #8884); outline-offset: -1px; }
+.file-preview-number { position: sticky; left: 0; min-width: 6ch; padding: 0 12px; text-align: right; color: var(--vscode-editorLineNumber-foreground, #888); background: var(--vscode-editor-background, #181818); user-select: none; }
+@media (max-width: 600px) { .file-preview-header { flex-wrap: wrap; gap: 6px; } .file-preview-heading { flex-basis: calc(100% - 40px); } .file-preview-header .icon-button { position: absolute; top: 8px; right: 8px; } }

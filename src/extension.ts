@@ -5,6 +5,7 @@ import { randomBytes } from 'node:crypto';
 import { stat } from 'node:fs/promises';
 import { Lane } from './shared';
 import { quoteTerminalPaths, terminalFileTarget } from './terminalFiles';
+import { readFilePreview } from './readFilePreview';
 import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE } from './terminalShortcuts';
 import { TerminalServiceClient } from './terminalService/client';
 import { RemoteTerminal, ServiceEvent } from './terminalService/protocol';
@@ -48,9 +49,30 @@ export class Ronin {
   private readonly known = new Map<number, RemoteTerminal>();
   private readonly attached = new Set<number>();
   private connectionState: 'connecting' | 'connected' | 'reconnecting' = 'connecting';
+  private readonly backgroundLocations = new Map<string, { line: number; column?: number; viewColumn?: vscode.ViewColumn }>();
+  private readonly fileLinkSubscriptions: vscode.Disposable;
   private readonly output = vscode.window.createOutputChannel('Ronin');
   constructor(private readonly context: vscode.ExtensionContext) {
     this.lanes = context.workspaceState.get<Lane[]>('lanes', []);
+    // Inactive tabs have no text editor yet. Apply their linked position when
+    // the user eventually selects the tab, without activating it ourselves.
+    this.fileLinkSubscriptions = vscode.Disposable.from(
+      vscode.window.onDidChangeActiveTextEditor(editor => {
+        if (!editor) return;
+        const key = editor.document.uri.toString(), location = this.backgroundLocations.get(key);
+        if (!location || location.viewColumn !== editor.viewColumn) return;
+        this.backgroundLocations.delete(key);
+        const position = editor.document.validatePosition(new vscode.Position(location.line - 1, (location.column ?? 1) - 1));
+        editor.selection = new vscode.Selection(position, position);
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+      }),
+      vscode.window.tabGroups.onDidChangeTabs(event => {
+        for (const tab of event.closed) if (tab.input instanceof vscode.TabInputText) {
+          const key = tab.input.uri.toString();
+          if (this.backgroundLocations.get(key)?.viewColumn === tab.group.viewColumn) this.backgroundLocations.delete(key);
+        }
+      })
+    );
     const key = context.storageUri?.fsPath ?? context.globalStorageUri.fsPath + ':empty-workspace';
     this.service = new TerminalServiceClient(key, path.join(context.extensionPath, 'dist/terminalDaemon.js'),
       event => this.serviceEvent(event), connected => {
@@ -60,7 +82,7 @@ export class Ronin {
         if (connected) void this.synchronize().catch(e=>this.error(e));
       });
   }
-  state() { return { connection: this.connectionState, lanes: this.lanes.map(lane => ({ ...lane, kind: this.sessions.get(lane.processId)?.agent ? 'agent' : 'terminal', agentName: this.sessions.get(lane.processId)?.agent })), running: [...this.sessions.keys()], columns: this.context.workspaceState.get<number>('columns', 0), autoFit: this.context.workspaceState.get('autoFit', true), sidebarMode: this.context.workspaceState.get('sidebarMode', 'closed'), sidebar: this.context.workspaceState.get('sidebar', { notes: '', tasks: [] }), fontSize: vscode.workspace.getConfiguration('ronin').get<number>('fontSize', 13) }; }
+  state() { return { version: this.context.extension.packageJSON.version as string, connection: this.connectionState, lanes: this.lanes.map(lane => ({ ...lane, kind: this.sessions.get(lane.processId)?.agent ? 'agent' : 'terminal', agentName: this.sessions.get(lane.processId)?.agent })), running: [...this.sessions.keys()], columns: this.context.workspaceState.get<number>('columns', 0), autoFit: this.context.workspaceState.get('autoFit', true), sidebarMode: this.context.workspaceState.get('sidebarMode', 'closed'), sidebar: this.context.workspaceState.get('sidebar', { notes: '', tasks: [] }), fontSize: vscode.workspace.getConfiguration('ronin').get<number>('fontSize', 13) }; }
   private updateTerminals(terminals: RemoteTerminal[]) {
     this.known.clear();
     const live = new Set<number>();
@@ -165,13 +187,34 @@ export class Ronin {
     const terminals=await this.service.list();
     for(const t of terminals)if(t.running)await this.service.kill(t.id);
   }
-  async openFile(target: string, id: number) {
-    if (/^https?:\/\//.test(target)) { await vscode.env.openExternal(vscode.Uri.parse(target)); return; }
+  async openFile(target: string, id: number, mode: 'preview' | 'background' = 'preview', requestId?: number) {
+    if (/^https?:\/\//i.test(target)) { await vscode.env.openExternal(vscode.Uri.parse(target)); return; }
     const lane = this.lanes.find(l => l.processId === id);
-    const location = terminalFileTarget(target, lane?.cwd ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir());
+    let location: ReturnType<typeof terminalFileTarget>;
+    try { location = terminalFileTarget(target, lane?.cwd ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? os.homedir(), os.homedir()); }
+    catch (error) {
+      if (mode !== 'preview') throw error;
+      this.send({ type: 'filePreview', requestId, preview: { path: target, error: error instanceof Error ? error.message : String(error) } });
+      return;
+    }
     const uri = vscode.Uri.file(path.resolve(location.path));
-    const options: vscode.TextDocumentShowOptions = { preview: true, viewColumn: vscode.ViewColumn.Beside, ...(location.line ? { selection: new vscode.Range(location.line - 1, 0, location.line - 1, 0) } : {}) };
-    await vscode.commands.executeCommand('vscode.open', uri, options);
+    if (mode === 'preview') {
+      const preview = await readFilePreview(uri, location);
+      this.send({ type: 'filePreview', requestId, preview });
+      return;
+    }
+    if (!this.panel) return;
+    // vscode.open's background option maps to an inactive editor. preserveFocus
+    // alone still replaces the visible canvas. Pin the tab in Ronin's own group.
+    const options: vscode.TextDocumentShowOptions & { background: boolean } = {
+      preview: false, background: true, preserveFocus: true, viewColumn: this.panel.viewColumn ?? vscode.ViewColumn.Active,
+      ...(location.line ? { selection: new vscode.Range(location.line - 1, (location.column ?? 1) - 1, location.line - 1, (location.column ?? 1) - 1) } : {})
+    };
+    const key = uri.toString();
+    if (location.line) this.backgroundLocations.set(key, { line: location.line, column: location.column, viewColumn: this.panel.viewColumn });
+    else this.backgroundLocations.delete(key);
+    try { await vscode.commands.executeCommand('vscode.open', uri, options); }
+    catch (error) { this.backgroundLocations.delete(key); throw error; }
   }
   async message(m: any) {
     if (!m || typeof m.type !== 'string') return;
@@ -230,7 +273,7 @@ export class Ronin {
     if (m.type === 'stop') await this.stop(m.id);
     if (m.type === 'input' && typeof m.data === 'string' && m.data.length <= 1_000_000) this.write(m.id, m.data);
     if (m.type === 'resize' && Number.isInteger(m.cols) && Number.isInteger(m.rows)) this.sessions.get(m.id)?.pty.resize(Math.max(2, Math.min(m.cols, 1000)), Math.max(2, Math.min(m.rows, 500)));
-    if (m.type === 'openFile' && typeof m.path === 'string') await this.openFile(m.path, m.id);
+    if (m.type === 'openFile' && typeof m.path === 'string') await this.openFile(m.path, m.id, m.mode === 'background' ? 'background' : 'preview', m.requestId);
     if (m.type === 'paths' && Array.isArray(m.paths) && m.paths.every((p: unknown) => typeof p === 'string')) this.send({ type: 'paste', id: m.id, data: quoteTerminalPaths(m.paths) });
     if (m.type === 'edit') {
       const lane = this.lanes.find(l => l.processId === m.id)!;
@@ -249,7 +292,7 @@ export class Ronin {
       await this.closeTerminal(m.id); this.lanes = this.lanes.filter(l => l.processId !== m.id); await this.save(); this.refresh();
     }
   }
-  dispose() { this.disposed=true; this.service.dispose(); this.sessions.clear(); this.output.dispose(); }
+  dispose() { this.disposed=true; this.fileLinkSubscriptions.dispose(); this.backgroundLocations.clear(); this.service.dispose(); this.sessions.clear(); this.output.dispose(); }
 }
 
 export function activate(context: vscode.ExtensionContext) {

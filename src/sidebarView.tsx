@@ -11,11 +11,12 @@ const send = (message: unknown) => vscode.postMessage(message);
 function Workspace() {
   const [lanes, setLanes] = useState<Lane[]>([]);
   const [running, setRunning] = useState<number[]>([]);
+  const [version, setVersion] = useState('');
   const [data, setData] = useState<SidebarData>({ notes: '', tasks: [] });
   useEffect(() => {
     const receive = (event: MessageEvent) => {
       const m = event.data;
-      if (m.type === 'state') { setLanes(m.lanes); setRunning(m.running); setData(m.sidebar); }
+      if (m.type === 'state') { setLanes(m.lanes); setRunning(m.running); setData(m.sidebar); setVersion(m.version ?? ''); }
       if (m.type === 'activity') setLanes(ls => ls.map(l => l.processId === m.id ? { ...l, kind: m.kind, agentName: m.agentName } : l));
     };
     window.addEventListener('message', receive);
@@ -30,7 +31,7 @@ function Workspace() {
         select={id => send({ type: 'selectLane', id })}
         action={(type, id) => send({ type, id })}/>
     </div>
-    <div className="sidebar-footer"><button type="button" title="Open Ronin Canvas" onClick={() => send({ type: 'openCanvas' })}><Icon name="arrange"/>Open Canvas</button></div>
+    <div className="sidebar-footer"><button type="button" title="Open Ronin Canvas" onClick={() => send({ type: 'openCanvas' })}><Icon name="arrange"/>Open Canvas</button>{version && <span className="sidebar-version" title={`Ronin Canvas v${version}`}>v{version}</span>}</div>
   </div>;
 }
 createRoot(document.getElementById('root')!).render(<Workspace/>);

@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { arrangeTerminalPanels, dropTerminalPanel } from './terminalLayout';
-import { Lane, CanvasState } from './shared';
+import { Lane, CanvasState, FilePreviewRequest, FilePreviewData } from './shared';
+import { FilePreview } from './FilePreview';
+import { terminalLinks, terminalLinkMode } from './terminalLinks';
 import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE, terminalShortcut } from './terminalShortcuts';
 import { hasTerminalFileData, terminalDropPaths } from './terminalDrop';
 import { currentTerminalTheme } from './terminalTheme';
@@ -15,6 +17,15 @@ import './webview.css';
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(state: unknown): void };
 const vscode = acquireVsCodeApi();
 const send = (message: unknown) => vscode.postMessage(message);
+let nextPreviewId = 0;
+function activateTerminalLink(event: MouseEvent, path: string, id: number) {
+  const mode = terminalLinkMode(event);
+  if (!mode) return;
+  event.preventDefault();
+  if (mode === 'preview' && !/^https?:\/\//i.test(path)) {
+    window.dispatchEvent(new CustomEvent<FilePreviewRequest>('previewFile', { detail: { requestId: ++nextPreviewId, id, path } }));
+  } else send({ type: 'openFile', id, path, mode: 'background' });
+}
 
 function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolean; fontSize: number }) {
   const host = useRef<HTMLDivElement>(null);
@@ -25,7 +36,11 @@ function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolea
     const fontFamily = () => getComputedStyle(document.body).getPropertyValue('--vscode-editor-font-family').trim() || 'monospace';
     const term = new Terminal({ fontSize, fontFamily: fontFamily(), cursorBlink: true, scrollback: 5000, allowProposedApi: false,
       theme: currentTerminalTheme(),
-      linkHandler: { allowNonHttpProtocols: true, activate: (_, uri) => { if (/^(file|https?):/.test(uri)) send({ type: 'openFile', id: lane.processId, path: uri }); } }
+      linkHandler: { allowNonHttpProtocols: true,
+        activate: (event, uri) => { if (/^(file|https?):/i.test(uri)) activateTerminalLink(event, uri, lane.processId); },
+        hover: (_, uri) => { host.current!.title = `${uri}\nCtrl-click: preview · Ctrl-Shift-click: background tab`; },
+        leave: () => { host.current!.title = ''; }
+      }
     });
     const addon = new FitAddon(); term.loadAddon(addon); term.open(host.current!); terminal.current = term; fit.current = addon;
     const themeObserver = new MutationObserver(() => {
@@ -50,9 +65,11 @@ function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolea
     const input = term.onData(data => { if (live.current) send({ type: 'input', id: lane.processId, data }); });
     const resized = term.onResize(({ cols, rows }) => send({ type: 'resize', id: lane.processId, cols, rows }));
     const link = term.registerLinkProvider({ provideLinks(row, callback) {
-      const text = term.buffer.active.getLine(row - 1)?.translateToString(true) ?? '';
-      const pattern = /https?:\/\/[^\s<>"']+|(?:\/[\w.@-]+(?:\/[\w.@-]+)*|(?:\.{1,2}\/)?(?:[\w.@-]+\/)*[\w.@-]+\.\w{1,12})(?::\d+(?::\d+)?)?/g;
-      callback([...text.matchAll(pattern)].map(match => ({ range: { start: { x: match.index! + 1, y: row }, end: { x: match.index! + match[0].length, y: row } }, text: match[0], activate: () => send({ type: 'openFile', id: lane.processId, path: match[0] }) })));
+      callback(terminalLinks(term.buffer.active, term.cols, row).map(link => ({ ...link,
+        activate: (event: MouseEvent) => activateTerminalLink(event, link.text, lane.processId),
+        hover: () => { host.current!.title = `${link.text}\nCtrl-click: preview · Ctrl-Shift-click: background tab`; },
+        leave: () => { host.current!.title = ''; }
+      })));
     } });
     // xterm writes parse asynchronously. Serialize resets/replays with live
     // output so a reconnect cannot reset ahead of output still being parsed.
@@ -110,6 +127,7 @@ function App() {
   const [columns, setColumns] = useState(0);
   const [maximized, setMaximized] = useState<number | null>(null);
   const [autoFit, setAutoFit] = useState(true);
+  const [preview, setPreview] = useState<{ request: FilePreviewRequest; data?: FilePreviewData }>();
   const [size, setSize] = useState({ width: 0, height: 0 });
   const initialized = useRef(false);
   const lanesRef = useRef(state.lanes); lanesRef.current = state.lanes;
@@ -121,7 +139,13 @@ function App() {
     if (target !== undefined) document.querySelector<HTMLTextAreaElement>(`[data-lane-id="${target}"] .xterm-helper-textarea`)?.focus();
   };
   useEffect(() => {
+    const previewFile = (event: Event) => {
+      const request = (event as CustomEvent<FilePreviewRequest>).detail;
+      setPreview({ request });
+      send({ type: 'openFile', ...request, mode: 'preview' });
+    };
     const receive = (e: MessageEvent) => {
+      if (e.data.type === 'filePreview') setPreview(current => current && current.request.requestId === e.data.requestId ? { ...current, data: e.data.preview } : current);
       if (e.data.type === 'state') {
         setState(e.data); setColumns(e.data.columns ?? 0); vscode.setState({ open: true });
         if (!initialized.current) { initialized.current = true; setAutoFit(e.data.autoFit ?? true); }
@@ -129,8 +153,9 @@ function App() {
       if (e.data.type === 'selectLane') { setMaximized(null); requestAnimationFrame(() => { document.querySelector(`[data-lane-id="${e.data.id}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); focusLane(e.data.id); }); }
       if (e.data.type === 'activity') setState(s => ({ ...s, lanes: s.lanes.map(l => l.processId === e.data.id ? { ...l, kind: e.data.kind, agentName: e.data.agentName } : l) }));
     };
+    window.addEventListener('previewFile', previewFile);
     window.addEventListener('message', receive); send({ type: 'ready' });
-    return () => { window.removeEventListener('message', receive); cleanup.current?.(); };
+    return () => { window.removeEventListener('previewFile', previewFile); window.removeEventListener('message', receive); cleanup.current?.(); };
   }, []);
   const commit = (lanes: Lane[]) => { lanesRef.current = lanes; setState(s => ({ ...s, lanes })); send({ type: 'layout', lanes }); };
   const changeAutoFit = (value: boolean) => { setAutoFit(value); send({ type: 'autoFit', value }); };
@@ -185,8 +210,8 @@ function App() {
   return <div className="workspace" onFocusCapture={e => {
     const article = (e.target as Element).closest<HTMLElement>('[data-lane-id]');
     if (article) activeLane.current = Number(article.dataset.laneId);
-  }} onMouseDownCapture={e => { if ((e.target as Element).closest('.ronin-sidebar')) return; if ((e.target as Element).closest('button')) e.preventDefault(); }} onClickCapture={e => {
-    if ((e.target as Element).closest('.ronin-sidebar')) return;
+  }} onMouseDownCapture={e => { if ((e.target as Element).closest('.ronin-sidebar, .file-preview')) return; if ((e.target as Element).closest('button')) e.preventDefault(); }} onClickCapture={e => {
+    if ((e.target as Element).closest('.ronin-sidebar, .file-preview')) return;
     if (!(e.target as Element).closest('button')) return;
     const article = (e.target as Element).closest<HTMLElement>('[data-lane-id]');
     const id = article ? Number(article.dataset.laneId) : activeLane.current;
@@ -202,6 +227,10 @@ function App() {
       <TerminalView lane={lane} running={state.running.includes(lane.processId) && (!state.connection || state.connection === 'connected')} fontSize={state.fontSize} />
       <footer>{!state.running.includes(lane.processId) && <button onClick={() => send({ type: 'start', id: lane.processId })}>Start</button>}{lane.command && <button title="Run the saved launch command at the shell prompt" onClick={() => send({ type: 'runAgent', id: lane.processId })}>Run command</button>}<span title={lane.cwd}>{lane.cwd}</span></footer><div className="resize" title="Resize terminal" onPointerDown={e => begin(lane, e, true)} />
     </article>)}
-  </div></div></div></div>;
+  </div></div></div>
+  {preview && <FilePreview key={preview.request.requestId} request={preview.request} data={preview.data}
+    onClose={() => { const id = preview.request.id; setPreview(undefined); requestAnimationFrame(() => focusLane(id)); }}
+    onOpen={() => send({ type: 'openFile', id: preview.request.id, path: preview.request.path, mode: 'background' })} />}
+  </div>;
 }
 createRoot(document.getElementById('root')!).render(<App />);

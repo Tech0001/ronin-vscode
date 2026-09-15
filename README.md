@@ -16,6 +16,7 @@ Every panel is a normal shell. Use your own CLI tools and agent accounts while k
 - Save and edit launch commands for individual panels.
 - See agents and terminals in a sidebar, alongside workspace notes and tasks.
 - Follow your VS Code theme, with visible panel borders and a highlighted active terminal.
+- Ctrl-click a file link for a quick preview over the canvas, including paths wrapped across terminal rows. Press Escape to close it. Ctrl-Shift-click (or the preview's **Open in background tab** button) opens a pinned tab in Ronin's editor group while keeping the canvas visible and its layout intact. Web links require Ctrl-click and open in your browser.
 
 **Start** opens a shell. **Run command** launches its saved command. When an agent exits, the shell stays open.
 

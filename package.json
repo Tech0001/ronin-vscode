@@ -2,7 +2,7 @@
   "name": "ronin-canvas",
   "displayName": "Ronin Canvas",
   "description": "A spatial terminal and agent workspace inside VS Code.",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "icon": "dist/ronin-icon.png",
   "publisher": "tech0001",
   "repository": {
