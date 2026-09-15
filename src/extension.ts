@@ -3,9 +3,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { stat } from 'node:fs/promises';
-import { Lane } from './shared';
+import { Lane, TerminalSelectionStyle } from './shared';
 import { quoteTerminalPaths, terminalFileTarget } from './terminalFiles';
 import { readFilePreview } from './readFilePreview';
+import { terminalColorOptions } from './terminalTheme';
 import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE } from './terminalShortcuts';
 import { TerminalServiceClient } from './terminalService/client';
 import { RemoteTerminal, ServiceEvent } from './terminalService/protocol';
@@ -82,7 +83,10 @@ export class Ronin {
         if (connected) void this.synchronize().catch(e=>this.error(e));
       });
   }
-  state() { return { version: this.context.extension.packageJSON.version as string, connection: this.connectionState, lanes: this.lanes.map(lane => ({ ...lane, kind: this.sessions.get(lane.processId)?.agent ? 'agent' : 'terminal', agentName: this.sessions.get(lane.processId)?.agent })), running: [...this.sessions.keys()], columns: this.context.workspaceState.get<number>('columns', 0), autoFit: this.context.workspaceState.get('autoFit', true), sidebarMode: this.context.workspaceState.get('sidebarMode', 'closed'), sidebar: this.context.workspaceState.get('sidebar', { notes: '', tasks: [] }), fontSize: vscode.workspace.getConfiguration('ronin').get<number>('fontSize', 13) }; }
+  state() {
+    const terminalConfig = vscode.workspace.getConfiguration('terminal.integrated');
+    return { version: this.context.extension.packageJSON.version as string, connection: this.connectionState, lanes: this.lanes.map(lane => ({ ...lane, kind: this.sessions.get(lane.processId)?.agent ? 'agent' : 'terminal', agentName: this.sessions.get(lane.processId)?.agent })), running: [...this.sessions.keys()], columns: this.context.workspaceState.get<number>('columns', 0), autoFit: this.context.workspaceState.get('autoFit', true), sidebarMode: this.context.workspaceState.get('sidebarMode', 'closed'), sidebar: this.context.workspaceState.get('sidebar', { notes: '', tasks: [] }), fontSize: vscode.workspace.getConfiguration('ronin').get<number>('fontSize', 13), terminalColors: terminalColorOptions(name => terminalConfig.get(name)), selectionStyle: vscode.workspace.getConfiguration('ronin').get<TerminalSelectionStyle>('selectionStyle', 'solid') };
+  }
   private updateTerminals(terminals: RemoteTerminal[]) {
     this.known.clear();
     const live = new Set<number>();
@@ -313,7 +317,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('ronin.newAgent', () => ronin.add('agent').catch(e => ronin.error(e))),
     vscode.window.registerWebviewPanelSerializer('ronin.canvas', { async deserializeWebviewPanel(panel) { ronin.open(panel); } }),
     vscode.window.registerUriHandler({ handleUri() { ronin.open(); } }),
-    vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('ronin')) ronin.refresh(); })
+    vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('ronin') || e.affectsConfiguration('terminal.integrated.minimumContrastRatio') || e.affectsConfiguration('terminal.integrated.drawBoldTextInBrightColors')) ronin.refresh(); })
   );
   const restoreTimer = setTimeout(() => { if (ronin.lanes.length && !ronin.panel) ronin.open(); }, 500);
   context.subscriptions.push({ dispose() { clearTimeout(restoreTimer); } });

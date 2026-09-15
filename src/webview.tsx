@@ -3,12 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { arrangeTerminalPanels, dropTerminalPanel } from './terminalLayout';
-import { Lane, CanvasState, FilePreviewRequest, FilePreviewData } from './shared';
+import { Lane, CanvasState, FilePreviewRequest, FilePreviewData, TerminalColorOptions, TerminalSelectionStyle } from './shared';
 import { FilePreview } from './FilePreview';
 import { terminalLinks, terminalLinkMode } from './terminalLinks';
 import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE, terminalShortcut } from './terminalShortcuts';
 import { hasTerminalFileData, terminalDropPaths } from './terminalDrop';
-import { currentTerminalTheme } from './terminalTheme';
+import { currentTerminalTheme, defaultTerminalColorOptions } from './terminalTheme';
 import { autoFitPanels } from './autoLayout';
 import { Icon } from "./Icon";
 import '@xterm/xterm/css/xterm.css';
@@ -27,15 +27,17 @@ function activateTerminalLink(event: MouseEvent, path: string, id: number) {
   } else send({ type: 'openFile', id, path, mode: 'background' });
 }
 
-function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolean; fontSize: number }) {
+function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle }: { lane: Lane; running: boolean; fontSize: number; terminalColors: TerminalColorOptions; selectionStyle: TerminalSelectionStyle }) {
   const host = useRef<HTMLDivElement>(null);
   const terminal = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
   const live = useRef(running); live.current = running;
+  const selection = useRef(selectionStyle); selection.current = selectionStyle;
   useEffect(() => {
     const fontFamily = () => getComputedStyle(document.body).getPropertyValue('--vscode-editor-font-family').trim() || 'monospace';
     const term = new Terminal({ fontSize, fontFamily: fontFamily(), cursorBlink: true, scrollback: 5000, allowProposedApi: false,
-      theme: currentTerminalTheme(),
+      ...terminalColors,
+      theme: currentTerminalTheme(selection.current),
       linkHandler: { allowNonHttpProtocols: true,
         activate: (event, uri) => { if (/^(file|https?):/i.test(uri)) activateTerminalLink(event, uri, lane.processId); },
         hover: (_, uri) => { host.current!.title = `${uri}\nCtrl-click: preview · Ctrl-Shift-click: background tab`; },
@@ -44,7 +46,7 @@ function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolea
     });
     const addon = new FitAddon(); term.loadAddon(addon); term.open(host.current!); terminal.current = term; fit.current = addon;
     const themeObserver = new MutationObserver(() => {
-      term.options.theme = currentTerminalTheme();
+      term.options.theme = currentTerminalTheme(selection.current);
       const nextFont = fontFamily();
       if (term.options.fontFamily !== nextFont) { term.options.fontFamily = nextFont; addon.fit(); }
     });
@@ -105,6 +107,12 @@ function TerminalView({ lane, running, fontSize }: { lane: Lane; running: boolea
     return () => { disposed = true; renderQueue.length = 0; clearTimeout(timer); observer.disconnect(); themeObserver.disconnect(); window.removeEventListener('message', listener); el.removeEventListener('wheel', wheel); input.dispose(); resized.dispose(); link.dispose(); term.dispose(); };
   }, [lane.processId]);
   useEffect(() => { if (terminal.current) { terminal.current.options.fontSize = fontSize; fit.current?.fit(); } }, [fontSize]);
+  useEffect(() => { if (terminal.current) terminal.current.options.theme = currentTerminalTheme(selectionStyle); }, [selectionStyle]);
+  useEffect(() => {
+    if (!terminal.current) return;
+    terminal.current.options.minimumContrastRatio = terminalColors.minimumContrastRatio;
+    terminal.current.options.drawBoldTextInBrightColors = terminalColors.drawBoldTextInBrightColors;
+  }, [terminalColors.minimumContrastRatio, terminalColors.drawBoldTextInBrightColors]);
   useEffect(() => { if (running && terminal.current) { fit.current?.fit(); send({ type: 'resize', id: lane.processId, cols: terminal.current.cols, rows: terminal.current.rows }); } }, [running]);
   // VS Code requires Shift to send an Explorer drop into a webview. Once it
   // arrives, claim it before xterm and the host's bubbling drag handlers.
@@ -224,7 +232,7 @@ function App() {
     {!state.lanes.length && <div className="empty"><h2>Your terminals, together.</h2><p>Add a terminal or agent lane above. Files, Git, and extensions stay in VS Code.</p><p>Drag headers to move. Drop onto a pane to reorder. Slight overlaps snap clear.</p><p>Terminals stay alive through tab closure and VS Code reloads. Use Ronin: Stop Background Terminals to end them.</p></div>}
     {state.lanes.map(lane => <article key={lane.processId} data-lane-id={lane.processId} className="lane" style={maximized === lane.processId ? { inset: 8 } : { left: lane.x, top: lane.y, width: lane.width, height: lane.height, display: maximized !== null ? 'none' : undefined }}>
       <header className="lane-header" onPointerDown={e => begin(lane, e)}><span className={state.running.includes(lane.processId) ? 'dot running' : 'dot'} /><strong title={lane.cwd + '\n' + lane.command}>{lane.name}</strong><small>{lane.agentName ? `Agent · ${lane.agentName}` : lane.kind}</small><span className="spacer" /><button title="Edit name and launch command" onClick={() => send({ type: 'edit', id: lane.processId })} className="icon-button"><Icon name="edit"/></button><button title="Maximize / restore" onClick={() => setMaximized(m => m === lane.processId ? null : lane.processId)} className="icon-button"><Icon name="maximize"/></button><button title="Remove lane" onClick={() => send({ type: 'remove', id: lane.processId })} className="icon-button"><Icon name="close"/></button></header>
-      <TerminalView lane={lane} running={state.running.includes(lane.processId) && (!state.connection || state.connection === 'connected')} fontSize={state.fontSize} />
+      <TerminalView lane={lane} running={state.running.includes(lane.processId) && (!state.connection || state.connection === 'connected')} fontSize={state.fontSize} terminalColors={state.terminalColors ?? defaultTerminalColorOptions} selectionStyle={state.selectionStyle ?? 'solid'} />
       <footer>{!state.running.includes(lane.processId) && <button onClick={() => send({ type: 'start', id: lane.processId })}>Start</button>}{lane.command && <button title="Run the saved launch command at the shell prompt" onClick={() => send({ type: 'runAgent', id: lane.processId })}>Run command</button>}<span title={lane.cwd}>{lane.cwd}</span></footer><div className="resize" title="Resize terminal" onPointerDown={e => begin(lane, e, true)} />
     </article>)}
   </div></div></div>

@@ -2,7 +2,7 @@
   "name": "ronin-canvas",
   "displayName": "Ronin Canvas",
   "description": "A spatial terminal and agent workspace inside VS Code.",
-  "version": "0.5.5",
+  "version": "0.5.7",
   "icon": "dist/ronin-icon.png",
   "publisher": "tech0001",
   "repository": {
@@ -112,6 +112,19 @@
     "configuration": {
       "title": "Ronin",
       "properties": {
+        "ronin.selectionStyle": {
+          "type": "string",
+          "enum": [
+            "solid",
+            "theme"
+          ],
+          "enumDescriptions": [
+            "Use the theme's selection color at full opacity, including in unfocused terminals.",
+            "Use VS Code's exact selection colors, transparency, and inactive selection styling."
+          ],
+          "default": "solid",
+          "description": "Text selection appearance in Ronin terminals."
+        },
         "ronin.shell": {
           "type": "string",
           "default": "",
