@@ -1,12 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { FilePreviewData, FilePreviewRequest } from './shared';
 import { Icon } from './Icon';
+import { ImagePreview } from './ImagePreview';
 
 export function FilePreview({ request, data, onClose, onOpen }: {
   request: FilePreviewRequest; data?: FilePreviewData; onClose(): void; onOpen(): void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const selectedLine = useRef<HTMLDivElement>(null);
+  const [imageError, setImageError] = useState(false);
   useEffect(() => {
     const element = dialog.current!;
     element.showModal();
@@ -24,6 +26,9 @@ export function FilePreview({ request, data, onClose, onOpen }: {
     {!data && <p role="status" className="file-preview-message">Loading file…</p>}
     {data?.error && <p role="alert" className="file-preview-message">{data.error}</p>}
     {data?.note && <p className="file-preview-message">{data.note}</p>}
+    {data?.image && (imageError
+      ? <p role="alert" className="file-preview-message">This image could not be displayed. Open it in a background tab to review it.</p>
+      : <ImagePreview image={data.image} path={data.path} onError={() => setImageError(true)} />)}
     {data?.content !== undefined && <div className="file-preview-content" tabIndex={0} aria-label="File contents">
       {data.content.split(/\r?\n/).map((text, index) => {
         const number = (data.startLine ?? 1) + index;

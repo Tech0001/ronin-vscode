@@ -2,7 +2,7 @@
   "name": "ronin-canvas",
   "displayName": "Ronin Canvas",
   "description": "A spatial terminal and agent workspace inside VS Code.",
-  "version": "0.5.7",
+  "version": "0.5.11",
   "icon": "dist/ronin-icon.png",
   "publisher": "tech0001",
   "repository": {
@@ -77,6 +77,10 @@
       {
         "command": "ronin.stopBackgroundTerminals",
         "title": "Ronin: Stop Background Terminals"
+      },
+      {
+        "command": "ronin.restartBackgroundService",
+        "title": "Ronin: Restart Background Terminal Service"
       }
     ],
     "keybindings": [

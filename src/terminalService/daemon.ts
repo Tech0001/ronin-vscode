@@ -7,10 +7,11 @@ import { Terminal } from '@xterm/headless';
 import { SerializeAddon } from '@xterm/addon-serialize';
 import { foregroundAgent } from '../agentDetection';
 import { FRAME_LIMIT, JsonLines, PROTOCOL, RemoteTerminal, StartTerminal } from './protocol';
+import { preserveMouseEncoding } from './mouseEncoding';
 
 interface Session {
   id:number; process:pty.IPty; screen:Terminal; serializer:SerializeAddon; running:boolean; generation:string;
-  seq:number; pending:string; queued:number; timer?:NodeJS.Timeout; agent?:string;
+  seq:number; pending:string; queued:number; timer?:NodeJS.Timeout; agent?:string; mouseEncoding:()=>string;
 }
 const directory = process.argv[2];
 if (!directory || !['linux','darwin'].includes(process.platform)) throw new Error('Ronin terminal service requires a private Linux or macOS runtime directory.');
@@ -58,7 +59,7 @@ async function start(value:StartTerminal) {
   if(concurrent){if(concurrent.timer)clearTimeout(concurrent.timer);concurrent.screen.dispose();}
   const screen=new Terminal({cols,rows,scrollback:2000,allowProposedApi:true});
   const serializer=new SerializeAddon();screen.loadAddon(serializer);
-  const s:Session={id:value.id,process,screen,serializer,running:true,generation:randomUUID(),seq:0,pending:'',queued:0};
+  const s:Session={id:value.id,process,screen,serializer,running:true,generation:randomUUID(),seq:0,pending:'',queued:0,mouseEncoding:preserveMouseEncoding(screen)};
   sessions.set(s.id,s);
   // While detached, satisfy terminal device/status queries so interactive CLIs do not stall.
   // When attached, the visible xterm handles those queries as before.
@@ -117,7 +118,7 @@ async function main(){
         s.screen.write('',()=>{
           if(socket.destroyed)return;
           flush(s);
-          reply({...metadata(s),seq:s.seq,data:s.serializer.serialize({scrollback:2000})});
+          reply({...metadata(s),seq:s.seq,data:s.serializer.serialize({scrollback:2000})+s.mouseEncoding()});
           peer.subscriptions.add(s.id);
         });return;
       }

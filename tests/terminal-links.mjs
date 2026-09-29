@@ -22,7 +22,7 @@ try {
   await post({ type: 'state', connection: 'connected', autoFit: true, columns: 6, lanes, running: lanes.map(l => l.processId), fontSize: 13 });
   await page.waitForFunction(() => window.__messages.filter(m => m.type === 'resize').length >= 12);
   await page.waitForFunction(() => window.__messages.some(m => m.type === 'resize' && m.id === 12 && m.rows === 23));
-  const lane = page.locator('[data-lane-id="1"]');
+  let lane = page.locator('[data-lane-id="1"]');
   const target = '/home/pc/Documents/GitHub/agent-Nova/docs/audit/2026-09-11-fiber-review.md:42:3';
   await post({ type: 'output', id: 1, data: target + '\r\n' });
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('fiber-review'));
@@ -69,6 +69,38 @@ try {
   assert.equal((await messages()).at(-1).path, target);
   assert.equal((await messages()).at(-1).mode, 'background');
   assert.equal(await page.getByRole('dialog').count(), 0);
+  // Codex sometimes inserts CRLF and indentation itself instead of letting the
+  // terminal soft-wrap. Exercise both halves in the bottom-right pane.
+  lane = page.locator('[data-lane-id="12"]');
+  await post({ type: 'reset', id: 12, data: '(/tmp/documents/\r\n  a-long-review.md:7)\r\n' });
+  await page.waitForFunction(() => document.querySelector('[data-lane-id="12"] .xterm-rows')?.textContent.includes('a-long-review'));
+  for (const row of [1, 2]) {
+    await click(row, ['Control']);
+    await page.getByRole('dialog').waitFor();
+    request = (await messages()).at(-1);
+    assert.equal(request.path, '/tmp/documents/a-long-review.md:7', 'each hard-wrapped half opens the full path');
+    await post({ type: 'filePreview', requestId: request.requestId, preview: { path: '/tmp/documents/a-long-review.md', content: 'review text' } });
+    await page.getByText('review text', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+    await page.getByRole('dialog').waitFor({ state: 'detached' });
+    await page.waitForFunction(() => document.activeElement?.matches('[data-lane-id="12"] .xterm-helper-textarea'));
+  }
+  const selectionRow = await lane.locator('.xterm-rows > div').nth(1).boundingBox();
+  await page.mouse.move(selectionRow.x + 18, selectionRow.y + selectionRow.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(selectionRow.x + 145, selectionRow.y + selectionRow.height / 2, { steps: 10 });
+  await page.mouse.up();
+  await post({ type: 'copyRequest', id: 12 });
+  await page.waitForFunction(() => window.__messages.some(m => m.type === 'copy' && m.id === 12 && m.text.includes('a-long-review')));
+  await post({ type: 'output', id: 12, data: Array.from({ length: 70 }, (_, i) => `Scroll line ${i}\r\n`).join('') });
+  await page.waitForFunction(() => document.querySelector('[data-lane-id="12"] .xterm-rows')?.textContent.includes('Scroll line 69'));
+  const terminalText = await lane.locator('.xterm-rows').textContent();
+  const wheelPoint = await point(5);
+  await page.mouse.move(wheelPoint.x, wheelPoint.y);
+  await page.mouse.wheel(0, -500);
+  await page.waitForFunction(previous => document.querySelector('[data-lane-id="12"] .xterm-rows')?.textContent !== previous, terminalText);
+  assert.deepEqual(await geometry(), before, 'preview, selection and scrolling preserve the 12-pane layout');
+  lane = page.locator('[data-lane-id="1"]');
   // OSC 8 carries a full target even when the visible label wraps independently.
   await post({ type: 'reset', id: 1, data: '\x1b]8;;file:///tmp/full%20path.md#L7\x1b\\short label\x1b]8;;\x1b\\\r\n' });
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent.includes('label'));
@@ -85,5 +117,5 @@ try {
   await page.getByRole('dialog').waitFor({ state: 'detached' });
   assert.deepEqual(await geometry(), before);
   assert.deepEqual(errors, []);
-  console.log('PASS wrapped paths, Ctrl-click, Ctrl-Shift-click, OSC 8, safe preview text, line highlight, errors, Escape/focus, stale replies, and unchanged 12-pane layout');
+  console.log('PASS soft/hard-wrapped paths, Ctrl-click, Ctrl-Shift-click, OSC 8, safe preview text, line highlight, errors, Escape/focus, stale replies, bottom-right selection/scrolling, and unchanged 12-pane layout');
 } finally { await browser.close(); }

@@ -8,7 +8,7 @@ it('Ronin exposes only terminal/workspace commands after the Cultivate split', (
   expect(manifest.contributes.commands.map((c: {command: string}) => c.command)).toEqual([
     'ronin.openCanvas', 'ronin.newTerminal', 'ronin.newAgent', 'ronin.interrupt',
     'ronin.shiftEnter', 'ronin.escape', 'ronin.copy', 'ronin.paste', 'ronin.showSidebar',
-    'ronin.stopBackgroundTerminals',
+    'ronin.stopBackgroundTerminals', 'ronin.restartBackgroundService',
   ]);
   expect(manifest.contributes.views.ronin.map((v: {id: string}) => v.id)).toEqual(['ronin.workspace']);
   expect(manifest.dependencies.ajv).toBeUndefined();

@@ -25,6 +25,38 @@ describe('terminal links', () => {
       expect(terminalLinks(term.buffer.active, term.cols, 2).map(l => l.text)).toEqual(['/tmp/b.md']);
     } finally { term.dispose(); }
   });
+  it('joins the indented hard-wrapped links emitted by full-screen Codex', async () => {
+    const term = await screen('  UI preview (/home/pc/Documents/GitHub/Charter/docs/visuals/\r\n' +
+      '  charter-review-desktop.png) · Build record (/home/pc/\r\n' +
+      '  Documents/GitHub/Charter/docs/reviews/m1-review-interface.md)', 64);
+    try {
+      const image = '/home/pc/Documents/GitHub/Charter/docs/visuals/charter-review-desktop.png';
+      const report = '/home/pc/Documents/GitHub/Charter/docs/reviews/m1-review-interface.md';
+      expect(terminalLinks(term.buffer.active, 64, 1).map(l => l.text)).toEqual([image]);
+      expect(terminalLinks(term.buffer.active, 64, 2).map(l => l.text)).toEqual([image, report]);
+      expect(terminalLinks(term.buffer.active, 64, 3).map(l => l.text)).toEqual([report]);
+    } finally { term.dispose(); }
+  });
+  it('handles quoted hard wraps, mixed soft wraps, Unicode and location suffixes', async () => {
+    const term = await screen('Report: `/tmp/my project/文件/very-long-\r\n  report.md:42:3`', 26);
+    try {
+      for (const row of [1, 2, 3]) {
+        const [link] = terminalLinks(term.buffer.active, 26, row);
+        expect(link.text).toBe('/tmp/my project/文件/very-long-report.md:42:3');
+        expect(link.range.start).toEqual({ x: 10, y: 1 });
+        expect(link.range.end).toEqual({ x: 16, y: 3 });
+      }
+    } finally { term.dispose(); }
+  });
+  it('does not join separate parenthesized paths or prose across paragraphs', async () => {
+    const term = await screen('(/tmp/first.md)\r\n(/tmp/second.md)\r\n(note about\r\n /tmp/third.md)\r\n(/tmp/fourth/\r\n\r\n  unrelated.md)', 64);
+    try {
+      expect(terminalLinks(term.buffer.active, 64, 1).map(l => l.text)).toEqual(['/tmp/first.md']);
+      expect(terminalLinks(term.buffer.active, 64, 2).map(l => l.text)).toEqual(['/tmp/second.md']);
+      expect(terminalLinks(term.buffer.active, 64, 4).map(l => l.text)).toEqual(['/tmp/third.md']);
+      expect(terminalLinks(term.buffer.active, 64, 7).map(l => l.text)).toEqual(['unrelated.md']);
+    } finally { term.dispose(); }
+  });
   it('maps wide and combined characters to cells and includes Unicode paths', async () => {
     const term = await screen('界 e\u0301 /tmp/文件.md:9', 12);
     try {

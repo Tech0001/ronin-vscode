@@ -18,9 +18,11 @@ Every panel is a normal shell. Use your own CLI tools and agent accounts while k
 - Follow your VS Code theme, with visible panel borders and a highlighted active terminal.
 - Honor VS Code's terminal contrast and bright-color settings (`terminal.integrated.minimumContrastRatio` and `terminal.integrated.drawBoldTextInBrightColors`), including live changes and text selection.
 - Use a solid selection highlight in the theme's color, keeping selected text readable across panes. Set `ronin.selectionStyle` to `theme` to use VS Code's selection transparency and inactive styling instead.
-- Ctrl-click a file link for a quick preview over the canvas, including paths wrapped across terminal rows. Press Escape to close it. Ctrl-Shift-click (or the preview's **Open in background tab** button) opens a pinned tab in Ronin's editor group while keeping the canvas visible and its layout intact. Web links require Ctrl-click and open in your browser.
+- Ctrl-click a file link for a quick preview over the canvas, including paths wrapped across terminal rows and quoted or parenthesized paths an app splits across indented lines. Press Escape to close it. Ctrl-Shift-click (or the preview's **Open in background tab** button) opens a pinned tab in Ronin's editor group while keeping the canvas visible and its layout intact. Web links require Ctrl-click and open in your browser.
 
 **Start** opens a shell. **Run command** launches its saved command. When an agent exits, the shell stays open.
+
+File previews show text or common image formats (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG). Scroll over an image to zoom around the pointer, drag to pan, or use the scrollbars (Shift-scroll moves sideways). The zoom controls include **Fit image** and **Actual size**. Images up to 10 MB can be previewed directly.
 
 ## Get started
 
@@ -35,6 +37,8 @@ You can also open the canvas with **Ronin: Open Canvas** in the Command Palette.
 **Build targets: Linux x64 and macOS (Apple Silicon and Intel).** The macOS port has been tested on Apple Silicon; Intel requires validation on an Intel Mac. Windows is not supported. Agent CLIs must be installed and authenticated separately.
 
 Closing VS Code leaves your programs running. Use **Ronin: Stop Background Terminals** to stop them. Live sessions do not survive a reboot.
+
+Version 0.5.11 fixes full-screen mouse scrolling after reconnection by preserving the terminal's mouse encoding. If your background terminal service was started by an older version, install the update and reload VS Code, then use **Ronin: Restart Background Terminal Service** when your agents have finished and start the lanes again. This one-time service update stops running programs and clears scrollback, while keeping saved lanes and layouts. A window reload alone does not update the existing service.
 
 ## Build
 

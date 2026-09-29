@@ -1,0 +1,114 @@
+// Real image decoding under the webview CSP, using a backend preview fixture.
+const { chromium } = await import(process.env.RONIN_PLAYWRIGHT ?? 'playwright');
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+const dist = path.resolve(import.meta.dirname, '../dist');
+const fixture = process.env.RONIN_IMAGE_PREVIEW_JSON
+  ? JSON.parse(readFileSync(process.env.RONIN_IMAGE_PREVIEW_JSON, 'utf8'))
+  : { path: '/tmp/review.svg', image: 'data:image/svg+xml;base64,' + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="2891"><rect width="1440" height="2891" fill="purple"/></svg>').toString('base64') };
+const browser = await chromium.launch({ headless: true, executablePath: process.env.RONIN_CHROMIUM ?? '/usr/bin/chromium' });
+try {
+  const page = await browser.newPage({ viewport: { width: 1800, height: 1000 } });
+  const errors = [];
+  page.on('pageerror', error => errors.push(String(error)));
+  await page.setContent(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'nonce-test';"><div id="root"></div>`);
+  await page.evaluate(() => {
+    window.__messages = [];
+    window.acquireVsCodeApi = () => ({ postMessage: m => window.__messages.push(m), setState: () => {} });
+    document.body.style.cssText = '--vscode-editor-background:#151515;--vscode-foreground:#ddd;--vscode-font-family:sans-serif;--vscode-editor-font-family:monospace';
+  });
+  await page.addStyleTag({ content: readFileSync(path.join(dist, 'webview.css'), 'utf8') });
+  await page.evaluate(script => { const element = document.createElement('script'); element.nonce = 'test'; element.textContent = script; document.body.append(element); }, readFileSync(path.join(dist, 'webview.js'), 'utf8'));
+  const post = message => page.evaluate(message => window.postMessage(message, '*'), message);
+  const lanes = Array.from({ length: 12 }, (_, i) => ({ processId: i + 1, name: `Agent ${i + 1}`, kind: 'terminal', command: '', cwd: '/tmp', x: 12, y: 12, width: 300, height: 400 }));
+  await post({ type: 'state', connection: 'connected', autoFit: true, columns: 6, lanes, running: lanes.map(l => l.processId), fontSize: 13 });
+  await page.waitForFunction(() => window.__messages.filter(m => m.type === 'resize').length >= 12);
+  await page.waitForFunction(() => {
+    const lanes = [...document.querySelectorAll('.lane')].map(el => el.getBoundingClientRect());
+    return lanes.length === 12 && lanes[1].x > lanes[0].x && lanes[11].y > lanes[0].y;
+  });
+  const geometry = () => page.locator('.lane').evaluateAll(elements => elements.map(el => { const r = el.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }));
+  const before = await geometry();
+  const open = async (id, preview) => {
+    await page.evaluate(({ id, file }) => window.dispatchEvent(new CustomEvent('previewFile', { detail: { requestId: id, id: 12, path: file } })), { id, file: preview.path });
+    await post({ type: 'filePreview', requestId: id, preview });
+    await page.getByRole('dialog').waitFor();
+  };
+  await open(1, fixture);
+  await page.waitForFunction(() => { const img = document.querySelector('.file-preview-image img'); return img?.complete && img.naturalWidth > 0; });
+  const fitted = await page.locator('.file-preview-image').evaluate(el => ({ width: el.clientWidth, height: el.clientHeight, scrollWidth: el.scrollWidth, scrollHeight: el.scrollHeight }));
+  assert.equal(fitted.width, fitted.scrollWidth, 'fit view has no horizontal overflow');
+  assert.equal(fitted.height, fitted.scrollHeight, 'fit view has no vertical overflow');
+  await page.getByRole('button', { name: 'Actual size', exact: true }).click();
+  await page.waitForFunction(() => { const img = document.querySelector('.file-preview-image img'); return img && img.getBoundingClientRect().width === img.naturalWidth; });
+  const full = await page.locator('.file-preview-image').evaluate(el => ({ height: el.clientHeight, scrollHeight: el.scrollHeight }));
+  assert.ok(full.scrollHeight > full.height, 'tall screenshot can be scrolled at actual size');
+  const view = page.getByRole('region', { name: 'Image preview', exact: true });
+  const metrics = () => view.evaluate(el => {
+    const img = el.querySelector('img');
+    const r = img.getBoundingClientRect();
+    return { left: el.scrollLeft, top: el.scrollTop, width: r.width, x: r.x, y: r.y, naturalWidth: img.naturalWidth };
+  });
+  const box = await view.boundingBox();
+  const pointer = { x: box.x + box.width * 0.55, y: box.y + box.height * 0.45 };
+  await page.mouse.move(pointer.x, pointer.y);
+  const original = await metrics();
+  const point = m => ({ x: (pointer.x - m.x) * m.naturalWidth / m.width, y: (pointer.y - m.y) * m.naturalWidth / m.width });
+  await page.mouse.wheel(0, -100);
+  await page.waitForFunction(width => document.querySelector('.file-preview-image img').getBoundingClientRect().width > width, original.width);
+  const enlarged = await metrics();
+  assert.ok(Math.abs(point(enlarged).x - point(original).x) < 1, 'wheel zoom holds the image point under the pointer horizontally');
+  assert.ok(Math.abs(point(enlarged).y - point(original).y) < 1, 'wheel zoom holds the image point under the pointer vertically');
+  await page.mouse.wheel(0, 100);
+  await page.waitForFunction(width => Math.abs(document.querySelector('.file-preview-image img').getBoundingClientRect().width - width) < 1, original.width);
+  const beforePan = await metrics();
+  await page.mouse.down();
+  await page.mouse.move(pointer.x - 80, pointer.y - 100, { steps: 5 });
+  const afterPan = await metrics();
+  assert.equal(afterPan.left, beforePan.left + 80, 'drag pans horizontally');
+  assert.equal(afterPan.top, beforePan.top + 100, 'drag pans vertically');
+  // Releasing outside the preview must stop panning, including on re-entry.
+  await page.mouse.move(box.x - 10, pointer.y);
+  await page.mouse.up();
+  await page.waitForFunction(() => !document.querySelector('.file-preview-image').classList.contains('panning'));
+  const released = await metrics();
+  await page.mouse.move(pointer.x, pointer.y);
+  assert.deepEqual(await metrics(), released, 'pointer release outside preview ends the drag');
+  await page.getByRole('button', { name: 'Actual size', exact: true }).click();
+  await view.evaluate(el => { el.scrollLeft = 50; el.scrollTop = 100; });
+  await page.mouse.move(pointer.x, pointer.y);
+  await page.keyboard.down('Shift');
+  await page.mouse.wheel(0, 80);
+  await page.keyboard.up('Shift');
+  await page.waitForFunction(() => document.querySelector('.file-preview-image').scrollLeft > 50);
+  assert.equal((await metrics()).width, original.width, 'Shift-scroll pans without zooming');
+  await view.focus();
+  await page.keyboard.press('ArrowDown');
+  await page.waitForFunction(() => document.querySelector('.file-preview-image').scrollTop > 100);
+  await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
+  assert.ok((await metrics()).width > original.width, 'zoom-in button works');
+  await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  assert.ok(Math.abs((await metrics()).width - original.width) < 1, 'zoom-out button works');
+  await page.getByRole('button', { name: 'Fit image', exact: true }).click();
+  const reset = await view.evaluate(el => ({ left: el.scrollLeft, top: el.scrollTop, fits: el.scrollWidth === el.clientWidth && el.scrollHeight === el.clientHeight }));
+  assert.deepEqual(reset, { left: 0, top: 0, fits: true }, 'Fit image resets zoom and pan');
+  if (process.env.RONIN_IMAGE_SCREENSHOT) await page.screenshot({ path: process.env.RONIN_IMAGE_SCREENSHOT });
+  assert.equal(await page.evaluate(() => window.__messages.filter(m => m.type === 'input').length), 0, 'image gestures never send terminal input');
+  await page.getByRole('button', { name: 'Open in background tab', exact: true }).click();
+  const request = await page.evaluate(() => window.__messages.filter(m => m.type === 'openFile').at(-1));
+  assert.equal(request.path, fixture.path);
+  assert.equal(request.mode, 'background');
+  assert.deepEqual(await geometry(), before);
+  await page.keyboard.press('Escape');
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
+  await page.waitForFunction(() => document.activeElement?.matches('[data-lane-id="12"] .xterm-helper-textarea'));
+  await open(2, { path: '/tmp/broken.png', image: 'data:image/png;base64,bm90IGEgcG5n' });
+  await page.getByRole('alert').waitFor();
+  assert.match(await page.getByRole('alert').textContent(), /could not be displayed/);
+  await page.getByRole('button', { name: 'Close preview', exact: true }).click();
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
+  assert.deepEqual(await geometry(), before);
+  assert.deepEqual(errors, []);
+  console.log('PASS image decoding under CSP, anchored wheel zoom, drag pan/release, keyboard and horizontal scroll, zoom buttons, fit reset, background action, error fallback, Escape/focus and unchanged 12-pane layout');
+} finally { await browser.close(); }

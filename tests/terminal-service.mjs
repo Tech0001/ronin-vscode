@@ -130,10 +130,33 @@ try{
   await until(()=>output.includes('BACK_ON_NORMAL_SCREEN'),'alternate screen exit');
   console.log('PASS alternate terminal screen restores on reattachment');
 
+  // A full-screen app expects the same mouse encoding after a webview reload.
+  // Tracking alone is insufficient: legacy wheel bytes are not SGR reports.
+  await client.detach(1);snapshotSeen=false;
+  await client.write(1,"printf '\\033[?1049h\\033[?1003h\\033[?1006h'; "+print('MOUSE_READY')+'\r');
+  await wait(250);
+  await client.attach(1,s=>{output=s.data;lastSeq=s.seq;snapshotSeen=true;});
+  assert.ok(output.includes('\x1b[?1003h'));
+  assert.ok(output.endsWith('\x1b[?1006h'), 'replay retains SGR encoding alongside mouse tracking');
+  await client.write(1,"printf '\\033[?1003l\\033[?1006l\\033[?1049l'; "+print('MOUSE_RESET')+'\r');
+  await until(()=>output.includes('MOUSE_RESET'),'mouse reset');
+  await client.attach(1,s=>{output=s.data;lastSeq=s.seq;});
+  assert.ok(output.endsWith('\x1b[?1006l\x1b[?1016l'), 'disabled encoding stays disabled on the next replay');
+  console.log('PASS full-screen mouse encoding and resets survive reattachment');
+
   await client.write(1,'exit\r');
   await until(async()=>!(await client.list()).find(s=>s.id===1).running,'explicit exit');
   await client.attach(1,s=>{assert.ok(s.data.includes('[Process exited: 0]'));});
   console.log('PASS shell exit is retained without automatic relaunch');
+  // Stop/restart uses a fresh service without disposing the extension's client.
+  // Disconnect other test clients so only the upgrading client relaunches it.
+  second.dispose();third.dispose();
+  await client.restart();
+  assert.deepEqual(await client.list(), [], 'service restart clears retired sessions');
+  const fresh=await client.start({id:4,cwd:root,shell:'/bin/bash',env:process.env});
+  assert.notEqual(fresh.pid,pid);
+  assert.ok(fresh.running);
+  console.log('PASS service restart reconnects the existing client to a fresh daemon');
 }finally{
   second?.dispose();third?.dispose();
   if(client)await client.shutdown().catch(()=>{});

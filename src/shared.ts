@@ -8,6 +8,7 @@ export interface FilePreviewData {
   line?: number;
   column?: number;
   content?: string;
+  image?: string;
   startLine?: number;
   note?: string;
   error?: string;

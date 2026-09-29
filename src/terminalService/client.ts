@@ -58,14 +58,27 @@ export class TerminalServiceClient {
       // Kernel lock prevents simultaneous reloads/windows from replacing a live service.
       const launcher=process.platform==='darwin'?join(dirname(this.script),'native/ronin-helper'):'/usr/bin/flock';
       const option=process.platform==='darwin'?'lock':'--nonblock';
-      const child=spawn(launcher,[option,join(this.directory,'daemon.lock'),this.executable,this.script,this.directory],{
-        detached:true,stdio:'ignore',cwd:tmpdir(),env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}
-      });
-      child.on('error',()=>{});child.unref();
+      let launching=false;
+      const launch=()=>{
+        if(launching)return;
+        launching=true;
+        const child=spawn(launcher,[option,join(this.directory,'daemon.lock'),this.executable,this.script,this.directory],{
+          detached:true,stdio:'ignore',cwd:tmpdir(),env:{...process.env,ELECTRON_RUN_AS_NODE:'1'}
+        });
+        const finished=()=>{launching=false;};
+        child.on('error',finished);child.on('exit',finished);child.unref();
+      };
+      launch();
       let last:unknown=e;
       for(let i=0;i<60&&!this.closed;i++){
         await new Promise(r=>setTimeout(r,100));
-        try{await this.openSocket();last=undefined;break;}catch(error:any){last=error;if(!['ENOENT','ECONNREFUSED'].includes(error.code))throw error;}
+        try{await this.openSocket();last=undefined;break;}catch(error:any){
+          last=error;if(!['ENOENT','ECONNREFUSED'].includes(error.code))throw error;
+          // A retiring daemon can release its socket before its lifetime lock.
+          // Retry a launcher that lost that lock instead of waiting forever
+          // for a process that was never started.
+          launch();
+        }
       }
       if(last)throw new Error('Background terminal service did not start. Existing sessions were not stopped.');
     }
@@ -129,6 +142,18 @@ export class TerminalServiceClient {
   write(id:number,data:string){return this.rpc({op:'write',id,data});}
   resize(id:number,cols:number,rows:number){return this.rpc({op:'resize',id,cols,rows});}
   async kill(id:number){await this.connect();return this.rpc({op:'kill',id});}
+  async restart(){
+    await this.connect();
+    const socket=this.socket!;
+    let onClose:()=>void;
+    const closed=new Promise<void>(resolve=>{onClose=resolve;socket.once('close',onClose);});
+    try{await this.rpc({op:'shutdown'});await closed;}
+    finally{socket.off('close',onClose!);}
+    if(this.reconnect){clearTimeout(this.reconnect);this.reconnect=undefined;}
+    // Reconnect only after the old service releases its socket/lock. The normal
+    // launcher will start the daemon bundled with this installed extension.
+    await this.connect();
+  }
   async shutdown(){await this.connect();await this.rpc({op:'shutdown'});this.dispose();}
   dispose(){
     this.closed=true;this.connected=false;

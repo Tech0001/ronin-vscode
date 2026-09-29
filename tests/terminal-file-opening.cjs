@@ -47,6 +47,42 @@ exports.run = async () => {
     await app.openFile(large, 1, 'preview', 5);
     assert.ok(previews.at(-1).preview.note.includes('too large'));
     assert.equal(previews.at(-1).preview.content, undefined);
+    // Binary images must bypass openTextDocument, including mixed-case suffixes.
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j2F8AAAAASUVORK5CYII=', 'base64');
+    const imageFile = path.join(root, 'preview image.PNG');
+    fs.writeFileSync(imageFile, png);
+    await app.openFile(imageFile, 1, 'preview', 6);
+    assert.equal(previews.at(-1).preview.image, 'data:image/png;base64,' + png.toString('base64'));
+    assert.equal(previews.at(-1).preview.content, undefined);
+    assert.equal(previews.at(-1).preview.error, undefined);
+    assert.equal(vscode.window.tabGroups.activeTabGroup.tabs.length, tabs);
+    const svgFile = path.join(root, 'preview.svg');
+    fs.writeFileSync(svgFile, '<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="2891"><rect width="1440" height="2891" fill="purple"/></svg>');
+    await app.openFile(svgFile, 1, 'preview', 7);
+    assert.ok(previews.at(-1).preview.image.startsWith('data:image/svg+xml;base64,'));
+    // An image larger than the text preview limit is still supported.
+    const largeImage = path.join(root, 'large.png');
+    fs.writeFileSync(largeImage, png);
+    fs.truncateSync(largeImage, 2_000_001);
+    await app.openFile(largeImage, 1, 'preview', 8);
+    assert.ok(previews.at(-1).preview.image);
+    fs.truncateSync(largeImage, 10_000_001);
+    await app.openFile(largeImage, 1, 'preview', 9);
+    assert.ok(previews.at(-1).preview.note.includes('too large'));
+    assert.equal(previews.at(-1).preview.image, undefined);
+    // Supply a real backend payload to the browser test, optionally using the
+    // reported image. The default fixture keeps the test self-contained.
+    await app.openFile(process.env.RONIN_PREVIEW_IMAGE ?? svgFile, 1, 'preview', 10);
+    assert.ok(previews.at(-1).preview.image);
+    fs.writeFileSync(path.join(root, 'image-preview.json'), JSON.stringify(previews.at(-1).preview));
+    assert.match(app.panel.webview.html, /img-src data:;/);
+    await app.openFile(imageFile, 1, 'background');
+    await until(() => vscode.window.tabGroups.all.some(g => g.tabs.some(t => t.input.uri?.fsPath === imageFile)), 'background image tab');
+    const imageGroup = vscode.window.tabGroups.all.find(g => g.tabs.some(t => t.input.uri?.fsPath === imageFile));
+    assert.equal(imageGroup.viewColumn, app.panel.viewColumn);
+    assert.equal(imageGroup.tabs.find(t => t.input.uri?.fsPath === imageFile).isActive, false);
+    assert.ok(app.panel.active && app.panel.visible);
+    assert.equal(vscode.window.tabGroups.all.length, groups);
     // Both new and existing file tabs must stay behind the active Ronin canvas.
     await app.openFile(vscode.Uri.file(file).toString() + '#L42C3', 1, 'background');
     await until(() => vscode.window.tabGroups.all.some(g => g.tabs.some(t => t.input.uri?.fsPath === file)), 'background file tab');
@@ -66,7 +102,7 @@ exports.run = async () => {
     assert.equal(editor.selection.active.line, 49);
     const doc = await vscode.workspace.openTextDocument(uri);
     await doc.save();
-    fs.writeFileSync(path.join(root, 'result.json'), JSON.stringify({ ok: true, tests: ['preview without editor tab', 'line/column and excerpt', 'unsaved edits', 'missing/folder/large files', 'inactive pinned tab in same group', 'canvas remains visible and active', 'existing tab stays in background', 'selection when opening background tab'] }));
+    fs.writeFileSync(path.join(root, 'result.json'), JSON.stringify({ ok: true, tests: ['preview without editor tab', 'line/column and excerpt', 'unsaved edits', 'missing/folder/large files', 'PNG/SVG binary image previews', 'separate image size limit', 'background image tab in same group', 'inactive pinned tab in same group', 'canvas remains visible and active', 'existing tab stays in background', 'selection when opening background tab'] }));
   } catch (error) {
     fs.writeFileSync(path.join(root, 'result.json'), JSON.stringify({ ok: false, error: String(error), stack: error.stack }));
     throw error;

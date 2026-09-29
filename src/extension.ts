@@ -148,7 +148,7 @@ export class Ronin {
     const nonce = randomBytes(24).toString('hex');
     const script = panel.webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist/webview.js'));
     const css = panel.webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist/webview.css'));
-    panel.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource} 'unsafe-inline'; font-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${css}"></head><body><div id="root"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
+    panel.webview.html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src ${panel.webview.cspSource} 'unsafe-inline'; font-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';"><link rel="stylesheet" href="${css}"></head><body><div id="root"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
     panel.webview.onDidReceiveMessage(message => { void this.message(message).catch(error => this.error(error)); }, undefined, this.context.subscriptions);
     panel.onDidDispose(() => { for(const id of this.attached)void this.service.detach(id).catch(()=>{}); this.attached.clear(); this.panel = undefined; this.ready = false; void vscode.commands.executeCommand('setContext', 'ronin.terminalFocused', false); }, undefined, this.context.subscriptions);
     panel.onDidChangeViewState(() => { if (panel.visible) this.refresh(); }, undefined, this.context.subscriptions);
@@ -190,6 +190,11 @@ export class Ronin {
     if(await vscode.window.showWarningMessage('Stop all background Ronin terminals and agents for this workspace? Lane definitions are kept.',{modal:true},'Stop all')!=='Stop all')return;
     const terminals=await this.service.list();
     for(const t of terminals)if(t.running)await this.service.kill(t.id);
+  }
+  async restartBackgroundService() {
+    if(await vscode.window.showWarningMessage('Restart Ronin’s background terminal service? This stops all running terminals and agents and clears their scrollback. Saved lane names, commands and layouts are kept.',{modal:true},'Restart service')!=='Restart service')return;
+    await this.service.restart();
+    await this.synchronize();
   }
   async openFile(target: string, id: number, mode: 'preview' | 'background' = 'preview', requestId?: number) {
     if (/^https?:\/\//i.test(target)) { await vscode.env.openExternal(vscode.Uri.parse(target)); return; }
@@ -306,6 +311,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('ronin.showSidebar', () => vscode.commands.executeCommand('ronin.workspace.focus')),
     vscode.commands.registerCommand('ronin.openCanvas', () => ronin.open()),
     vscode.commands.registerCommand('ronin.stopBackgroundTerminals', () => ronin.stopBackgroundTerminals().catch(e=>ronin.error(e))),
+    vscode.commands.registerCommand('ronin.restartBackgroundService', () => ronin.restartBackgroundService().catch(e=>ronin.error(e))),
     vscode.commands.registerCommand('ronin.interrupt', () => { if (ronin.focusedId !== undefined) ronin.write(ronin.focusedId, '\x03'); }),
     vscode.commands.registerCommand('ronin.shiftEnter', () => { if (ronin.focusedId !== undefined) ronin.write(ronin.focusedId, SHIFT_ENTER_SEQUENCE); }),
     // VS Code handles Escape at the workbench before the webview receives it.
