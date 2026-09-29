@@ -13,6 +13,7 @@ Every panel is a normal shell. Use your own CLI tools and agent accounts while k
 - Move, resize, and arrange terminal panels, or let them automatically fit the available space.
 - Save your layout and terminal setup for each workspace.
 - Keep terminals running in the background when you reload or close VS Code, then reconnect when you return.
+- Use a pane's refresh icon to rebuild a blank or stale display from its saved screen without stopping its shell or agent.
 - Save and edit launch commands for individual panels.
 - See agents and terminals in a sidebar, alongside workspace notes and tasks.
 - Follow your VS Code theme, with visible panel borders and a highlighted active terminal.
@@ -38,7 +39,7 @@ You can also open the canvas with **Ronin: Open Canvas** in the Command Palette.
 
 Closing VS Code leaves your programs running. Use **Ronin: Stop Background Terminals** to stop them. Live sessions do not survive a reboot.
 
-Version 0.5.11 fixes full-screen mouse scrolling after reconnection by preserving the terminal's mouse encoding. If your background terminal service was started by an older version, install the update and reload VS Code, then use **Ronin: Restart Background Terminal Service** when your agents have finished and start the lanes again. This one-time service update stops running programs and clears scrollback, while keeping saved lanes and layouts. A window reload alone does not update the existing service.
+Version 0.5.12 restores terminal screens whenever the canvas is recreated and adds a refresh button to each pane. Version 0.5.11 fixes full-screen mouse scrolling after reconnection by preserving the terminal's mouse encoding. If your background terminal service was started by a version older than 0.5.11, install the update and reload VS Code, then use **Ronin: Restart Background Terminal Service** when your agents have finished and start the lanes again. This one-time service update stops running programs and clears scrollback, while keeping saved lanes and layouts. A window reload alone does not update the existing service.
 
 ## Build
 

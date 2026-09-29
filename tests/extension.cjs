@@ -34,6 +34,14 @@ exports.run = async () => {
   app.panel.dispose();assert.equal(app.sessions.get(1).pty.pid,pid);
   app.open();await wait(()=>app.ready,'reopened canvas');
   assert.equal(app.sessions.get(1).pty.pid,pid);
+  await wait(()=>app.attached.has(1),'reopened terminal attached');
+  const replays=[];
+  const originalSend=app.send.bind(app);
+  app.send=message=>{if(message.type==='replay'&&message.id===1)replays.push(message);originalSend(message);};
+  app.ready=false;
+  await app.message({type:'ready'});
+  assert.ok(replays.some(message=>message.data.includes('RONIN_PTY_OK')),'a recreated canvas must replay an already attached terminal');
+  assert.equal(app.sessions.get(1).pty.pid,pid,'refreshing the display keeps the shell');
   app.sessions.get(1).pty.resize(100,35);
   app.write(1,'stty size\r');
   await wait(()=>app.sessions.get(1)?.output.includes('35 100'),'PTY resize');

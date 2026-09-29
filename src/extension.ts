@@ -230,12 +230,16 @@ export class Ronin {
     if (m.type === 'ready') {
       this.ready = true; this.refresh();
       if (this.selectedLane !== undefined) { this.send({ type: 'selectLane', id: this.selectedLane }); this.selectedLane = undefined; }
-      if (!this.restored) {
-        this.restored = true;
-        try { await this.synchronize();
+      try {
+        // A new webview needs fresh screen snapshots even after the lanes have
+        // already been restored. Attachment and ready messages can arrive in
+        // either order when a canvas is recreated.
+        await this.synchronize();
+        if (!this.restored) {
+          this.restored = true;
           for (const lane of this.lanes) if (!this.known.has(lane.processId)) { try { await this.start(lane.processId); } catch (e) { this.error(e); } }
-        } catch(e) { this.connectionState='reconnecting'; this.refresh(); this.error(e); }
-      }
+        }
+      } catch(e) { this.connectionState='reconnecting'; this.refresh(); this.error(e); }
       return;
     }
     if (m.type === 'showSidebar') { await vscode.commands.executeCommand('ronin.workspace.focus'); return; }

@@ -6,6 +6,7 @@ const paths = {
   fit: <><path d="M7 2H2v5m11-5h5v5M2 13v5h5m11-5v5h-5"/><rect x="6" y="6" width="8" height="8" rx="1"/></>,
   arrange: <><rect x="2" y="3" width="7" height="6" rx="1"/><rect x="12" y="3" width="6" height="6" rx="1"/><rect x="2" y="12" width="7" height="5" rx="1"/><rect x="12" y="12" width="6" height="5" rx="1"/></>,
   reset: <><path d="M4 6a7 7 0 1 1-1 7M4 2v5h5"/></>,
+  refresh: <><path d="M17 9a7 7 0 1 0-2 6M17 4v5h-5"/></>,
   pin: <><path d="m7 2 7 3-2 4 2 4-5-1-3 3-1-5-3-2 5-2Zm2 10-5 6"/></>,
   close: <path d="m5 5 10 10M15 5 5 15"/>,
   trash: <><path d="M3 5h14M7 5V2h6v3M5 5l1 13h8l1-13M8 8v7m4-7v7"/></>,
