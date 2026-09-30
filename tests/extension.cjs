@@ -42,6 +42,7 @@ exports.run = async () => {
   await app.message({type:'ready'});
   assert.ok(replays.some(message=>message.data.includes('RONIN_PTY_OK')),'a recreated canvas must replay an already attached terminal');
   assert.equal(app.sessions.get(1).pty.pid,pid,'refreshing the display keeps the shell');
+  app.send=originalSend;
   app.sessions.get(1).pty.resize(100,35);
   app.write(1,'stty size\r');
   await wait(()=>app.sessions.get(1)?.output.includes('35 100'),'PTY resize');
@@ -75,6 +76,19 @@ exports.run = async () => {
   await wait(async()=>{await app.detectAgents();return app.state().lanes[0].agentName==='Claude';},'recognizes manually launched foreground agent');
   await app.stop(1);
   await wait(async()=>{await app.detectAgents();return app.state().lanes[0].kind==='terminal';},'returns to terminal after agent exit');
+  const beforeRefresh=(await app.service.list()).find(terminal=>terminal.id===1);
+  const resizeCalls=[];
+  const originalResize=app.service.resize.bind(app.service);
+  app.service.resize=(...args)=>{resizeCalls.push(args);return originalResize(...args);};
+  const rebuilds=[];
+  app.send=message=>{if(message.type==='rebuildDisplay')rebuilds.push(message.id);originalSend(message);};
+  await app.message({type:'refreshDisplay',id:1});
+  assert.deepEqual(resizeCalls.slice(0,2),[[1,beforeRefresh.cols+1,beforeRefresh.rows],[1,beforeRefresh.cols,beforeRefresh.rows]],'refresh requests a PTY repaint and restores its size');
+  assert.deepEqual(rebuilds,[1],'refresh rebuilds only the chosen display');
+  assert.equal((await app.service.list()).find(terminal=>terminal.id===1).cols,beforeRefresh.cols);
+  assert.equal(app.sessions.get(1).pty.pid,pid,'refresh does not restart the shell');
+  app.service.resize=originalResize;
+  app.send=originalSend;
   app.panel.dispose();
   // Let queued layout messages drain before setting the reload fixture.
   await new Promise(resolve=>setTimeout(resolve,200));
@@ -101,7 +115,7 @@ exports.run = async () => {
     await wait(()=>restored.sessions.get(1)?.output.includes('RESTORE_OK'),'restored shell I/O');
     await restored.closeTerminal(1);await wait(()=>!restored.sessions.has(1),'explicit PTY exit');
   } finally {await restored.service.shutdown();restored.dispose();}
-  fs.writeFileSync(path.join(process.env.RONIN_TEST_RESULTS,'result.json'),JSON.stringify({ok:true,tests:['extension activation','webview ready','real PTY I/O','tab closure session retention','resize','interrupt preserves shell','agent exit preserves shell','columns persistence','extension client disposal preserves PID','new controller reconnects with screen and shell state']}));
+  fs.writeFileSync(path.join(process.env.RONIN_TEST_RESULTS,'result.json'),JSON.stringify({ok:true,tests:['extension activation','webview ready','real PTY I/O','tab closure session retention','resize','interrupt preserves shell','agent exit preserves shell','pane refresh requests PTY repaint without restart','columns persistence','extension client disposal preserves PID','new controller reconnects with screen and shell state']}));
  } catch(e) { fs.writeFileSync(path.join(process.env.RONIN_TEST_RESULTS,'result.json'),JSON.stringify({ok:false,error:String(e),stack:e.stack,state:app.state(),ready:app.ready,panel:!!app.panel}));throw e; }
  finally {if(!app.disposed)await app.service.shutdown();app.dispose();}
 };

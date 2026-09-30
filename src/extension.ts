@@ -196,6 +196,18 @@ export class Ronin {
     await this.service.restart();
     await this.synchronize();
   }
+  async refreshDisplay(id: number) {
+    const terminal = (await this.service.list()).find(t => t.id === id);
+    if (terminal?.running) {
+      // Some full-screen programs clear their own screen after reconnecting
+      // and do not repaint until they receive a terminal resize. Nudge only
+      // this PTY, then restore its exact size before rebuilding the view.
+      await this.service.resize(id, terminal.cols < 1000 ? terminal.cols + 1 : terminal.cols - 1, terminal.rows);
+      await new Promise(resolve => setTimeout(resolve, 150));
+      await this.service.resize(id, terminal.cols, terminal.rows);
+    }
+    this.send({ type: 'rebuildDisplay', id });
+  }
   async openFile(target: string, id: number, mode: 'preview' | 'background' = 'preview', requestId?: number) {
     if (/^https?:\/\//i.test(target)) { await vscode.env.openExternal(vscode.Uri.parse(target)); return; }
     const lane = this.lanes.find(l => l.processId === id);
@@ -265,6 +277,7 @@ export class Ronin {
       return;
     }
     if (!Number.isInteger(m.id) || !this.lanes.some(l => l.processId === m.id)) return;
+    if (m.type === 'refreshDisplay') { await this.refreshDisplay(m.id); return; }
     if (m.type === 'focus') {
       if (m.focused) this.focusedId = m.id;
       await vscode.commands.executeCommand('setContext', 'ronin.terminalFocused', Boolean(m.focused));
