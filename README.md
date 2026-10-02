@@ -1,49 +1,40 @@
 # Ronin Canvas
 
-**Run multiple terminals and AI coding agents side by side inside VS Code.**
+**Run persistent terminals and AI coding agents in movable panels inside VS Code.**
 
-Ronin Canvas puts interactive terminals in movable, resizable panels in the main editor area. Keep an agent writing code, another reviewing it, and your development server visible together—without constantly switching terminal tabs.
+Ronin Canvas puts your shells in the editor area so you can watch several agents, a development server, and ordinary terminal work at once. Each panel is a real shell with its own working directory and optional launch command. Your Explorer, editors, and Git tools stay available alongside the canvas.
 
-Every panel is a normal shell. Use your own CLI tools and agent accounts while keeping VS Code's Explorer, editors, and Git tools available.
+![Ronin Canvas showing terminal panels and the workspace sidebar](media/ronin-canvas.png)
 
-![Ronin Canvas in VS Code with three agent terminals and the workspace sidebar](media/ronin-canvas.png)
+## Highlights
 
-## What it does
+- Move and resize panels freely, arrange them in columns, or fit them automatically to the available space. Ronin saves each workspace's layout and terminal setup.
+- Keep shells running when you close the canvas or VS Code. Ronin reconnects to the same processes and scrollback when you return.
+- Run your own coding agent CLIs in separate panels. **Start** opens the shell; **Run command** launches that panel's saved command. The shell remains open after the command exits.
+- Refresh one blank or stale panel without restarting its process. The refresh button asks the program to redraw and rebuilds the panel's display.
+- Use the sidebar to jump between panels and keep workspace notes and tasks. The installed Ronin version appears at the bottom of the sidebar.
+- Follow your VS Code theme and terminal color settings. Set `ronin.selectionStyle` to `theme` if you prefer VS Code's selection transparency over Ronin's solid highlight.
+- Ctrl-click a file path in terminal output to preview it over the canvas. Wrapped paths are supported. Ctrl-Shift-click opens an inactive tab in the same editor group, leaving the canvas and its layout visible. Ctrl-click web links to open them in your browser.
 
-- Move, resize, and arrange terminal panels, or let them automatically fit the available space.
-- Save your layout and terminal setup for each workspace.
-- Keep terminals running in the background when you reload or close VS Code, then reconnect when you return.
-- Use a pane's refresh icon to request a redraw from a blank or stale terminal program and rebuild its display without stopping the shell or agent.
-- Save and edit launch commands for individual panels.
-- See agents and terminals in a sidebar, alongside workspace notes and tasks.
-- Follow your VS Code theme, with visible panel borders and a highlighted active terminal.
-- Honor VS Code's terminal contrast and bright-color settings (`terminal.integrated.minimumContrastRatio` and `terminal.integrated.drawBoldTextInBrightColors`), including live changes and text selection.
-- Use a solid selection highlight in the theme's color, keeping selected text readable across panes. Set `ronin.selectionStyle` to `theme` to use VS Code's selection transparency and inactive styling instead.
-- Ctrl-click a file link for a quick preview over the canvas, including paths wrapped across terminal rows and quoted or parenthesized paths an app splits across indented lines. Press Escape to close it. Ctrl-Shift-click (or the preview's **Open in background tab** button) opens a pinned tab in Ronin's editor group while keeping the canvas visible and its layout intact. Web links require Ctrl-click and open in your browser.
+File previews support text and common image formats (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG). For images, scroll to zoom around the pointer and drag to pan. Images up to 10 MB can be previewed directly.
 
-**Start** opens a shell. **Run command** launches its saved command. When an agent exits, the shell stays open.
+These features describe the current source on `main`. Published installers may lag behind it.
 
-File previews show text or common image formats (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG). Scroll over an image to zoom around the pointer, drag to pan, or use the scrollbars (Shift-scroll moves sideways). The zoom controls include **Fit image** and **Actual size**. Images up to 10 MB can be previewed directly.
+## Install
 
-## Get started
+1. Download the `.vsix` for your platform from the [latest published release](https://github.com/Tech0001/ronin-vscode/releases/latest).
+2. In VS Code, open the Command Palette and run **Extensions: Install from VSIX…**. Select the downloaded file and reload VS Code if prompted.
+3. Open a trusted workspace, select **Ronin** in the sidebar, and click **Open Canvas**. Add a terminal or agent panel and press **Start**.
 
-**[Download for Mac (Apple Silicon)](https://github.com/Tech0001/ronin-vscode/releases/download/v0.5.4/ronin-canvas-0.5.4-darwin-arm64.vsix)** · **[Download for Linux (x64)](https://github.com/Tech0001/ronin-vscode/releases/download/v0.5.4/ronin-canvas-0.5.4-linux-x64.vsix)** · [Release notes](https://github.com/Tech0001/ronin-vscode/releases/tag/v0.5.4)
+You can also run **Ronin: Open Canvas** from the Command Palette. Install and sign in to any agent CLI you want to use separately. The `.vsix` includes Ronin's native terminal components; end users do not need build tools.
 
-1. Download the `.vsix` installer for your platform above.
-2. In VS Code, open the Command Palette, run **Extensions: Install from VSIX…**, and select the downloaded file. Reload VS Code if prompted.
-3. Open a trusted workspace, select Ronin in the sidebar, and click **Open Canvas** at the bottom. Add a terminal or agent panel and press Start.
+Ronin targets Linux x64 and macOS on Apple Silicon or Intel. The macOS port has been tested on Apple Silicon; Intel still needs validation on an Intel Mac. Windows is not supported.
 
-You can also open the canvas with **Ronin: Open Canvas** in the Command Palette. The installer includes the native terminal components; no build tools are needed.
+Closing VS Code leaves running programs alive. Use **Ronin: Stop Background Terminals** to end them intentionally. Sessions do not survive a machine reboot.
 
-**Build targets: Linux x64 and macOS (Apple Silicon and Intel).** The macOS port has been tested on Apple Silicon; Intel requires validation on an Intel Mac. Windows is not supported. Agent CLIs must be installed and authenticated separately.
+## Build from source
 
-Closing VS Code leaves your programs running. Use **Ronin: Stop Background Terminals** to stop them. Live sessions do not survive a reboot.
-
-Version 0.5.13 makes a pane refresh request a redraw from the running program before rebuilding the display. Version 0.5.12 restores terminal screens whenever the canvas is recreated. Version 0.5.11 fixes full-screen mouse scrolling after reconnection by preserving the terminal's mouse encoding. If your background terminal service was started by a version older than 0.5.11, install the update and reload VS Code, then use **Ronin: Restart Background Terminal Service** when your agents have finished and start the lanes again. This one-time service update stops running programs and clears scrollback, while keeping saved lanes and layouts. A window reload alone does not update the existing service.
-
-## Build
-
-On macOS, install Node.js/npm and the Xcode Command Line Tools (`xcode-select --install`). Use an arm64 Node.js installation for Apple Silicon or an x64 installation for Intel. On Linux x64, you also need Python 3, Make, a C++ compiler, and Docker.
+On macOS, install Node.js/npm and the Xcode Command Line Tools (`xcode-select --install`). Use an arm64 Node.js build on Apple Silicon or x64 on Intel. On Linux x64, install Node.js/npm, Python 3, Make, a C++ compiler, and Docker.
 
 ```bash
 git clone https://github.com/Tech0001/ronin-vscode.git
@@ -52,11 +43,13 @@ npm ci
 npm run package
 ```
 
-The installable `.vsix` is created in `release/`, with the platform and architecture in its filename (for example, `ronin-canvas-0.5.4-darwin-arm64.vsix`). Each build targets the architecture of the Node.js process running it. Docker is only used for Linux packaging; macOS packages use node-pty's native prebuild and compile a small helper with the Xcode tools. End users do not need Node.js, Docker, or compilers.
+The installer is written to `release/` with the platform and architecture in its name. Packaging uses the architecture of the Node.js process. Docker is used for Linux packaging; macOS builds use node-pty's native prebuild and compile a small helper with the Xcode tools.
 
-Run `npm test` for unit tests and `npm run test:terminals` for real terminal tests, including persistence, reconnection, resizing, and interrupt handling. On macOS, the terminal tests also cover zsh and agent detection.
+Run `npm test` for unit tests and `npm run test:terminals` for live terminal tests covering persistence, reconnection, resizing, and interrupts.
 
-The macOS service uses a private directory under `/tmp` to stay within Unix socket path limits, and a native kernel lock to keep concurrent VS Code windows on the same service. Agent detection reads the foreground process arguments using macOS `sysctl`.
+### Updating an older installation
+
+If your background terminal service was started by a version older than 0.5.11, a VS Code reload alone does not replace that service. After your agents finish, run **Ronin: Restart Background Terminal Service** once to get the mouse-scrolling fix. That command stops every running Ronin terminal and clears its scrollback; saved panel names, commands, and layouts remain.
 
 ## License
 
