@@ -77,14 +77,19 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
     // output so a reconnect cannot reset ahead of output still being parsed.
     const renderQueue: any[] = [];
     let rendering = false, disposed = false;
+    let outputTail = '';
     const renderNext = () => {
       if (rendering || disposed || !renderQueue.length) return;
       rendering = true;
       const m = renderQueue.shift();
-      if (m.type === 'reset' || m.type === 'replay') term.reset();
+      if (m.type === 'reset' || m.type === 'replay') { term.clearSelection(); term.reset(); outputTail = ''; }
       if (m.type === 'replay' && Number.isInteger(m.cols) && Number.isInteger(m.rows)) term.resize(m.cols,m.rows);
-      term.write(m.data ?? '', () => {
+      const data = m.data ?? '';
+      const clearedScreen = m.type === 'output' && /\x1b\[(?:[023]?J|\?1049[hl])/.test(outputTail + data);
+      if (m.type === 'output') outputTail = data.slice(-12);
+      term.write(data, () => {
         if (disposed) return;
+        if (clearedScreen || (term.hasSelection() && !term.getSelection().trim())) term.clearSelection();
         if (m.type === 'replay') fit.current?.fit();
         rendering = false; renderNext();
       });
