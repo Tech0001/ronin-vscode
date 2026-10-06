@@ -126,13 +126,15 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
     e.preventDefault(); e.stopPropagation();
     e.dataTransfer.dropEffect = live.current ? 'copy' : 'none';
   };
-  return <div className="terminal" ref={host} onFocus={() => send({ type: 'focus', id: lane.processId, focused: true })} onBlur={() => send({ type: 'focus', id: lane.processId, focused: false })} onDragEnterCapture={acceptFileDrag} onDragOverCapture={acceptFileDrag} onDropCapture={e => {
+  // FitAddon measures xterm's immediate parent. Keep pane padding outside it
+  // so rows and columns are fitted to the actual visible space.
+  return <div className="terminal"><div className="terminal-fit" ref={host} onFocus={() => send({ type: 'focus', id: lane.processId, focused: true })} onBlur={() => send({ type: 'focus', id: lane.processId, focused: false })} onDragEnterCapture={acceptFileDrag} onDragOverCapture={acceptFileDrag} onDropCapture={e => {
     if (!hasTerminalFileData(e.dataTransfer)) return;
     e.preventDefault(); e.stopPropagation();
     if (!live.current) return;
     const paths = terminalDropPaths(e.dataTransfer);
     if (paths.length) { terminal.current?.focus(); send({ type: 'paths', id: lane.processId, paths }); }
-  }} />;
+  }} /></div>;
 }
 
 function App() {

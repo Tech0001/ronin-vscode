@@ -2,7 +2,7 @@
   "name": "ronin-canvas",
   "displayName": "Ronin Canvas",
   "description": "Run persistent terminals and AI coding agents in movable panels inside VS Code.",
-  "version": "0.5.14",
+  "version": "0.5.15",
   "icon": "dist/ronin-icon.png",
   "publisher": "tech0001",
   "repository": {
