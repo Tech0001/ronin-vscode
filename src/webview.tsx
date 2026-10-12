@@ -32,7 +32,6 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
   const terminal = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
   const live = useRef(running); live.current = running;
-  const agent = useRef(lane.agentName); agent.current = lane.agentName;
   const selection = useRef(selectionStyle); selection.current = selectionStyle;
   useEffect(() => {
     const fontFamily = () => getComputedStyle(document.body).getPropertyValue('--vscode-editor-font-family').trim() || 'monospace';
@@ -46,17 +45,7 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
       }
     });
     const addon = new FitAddon(); term.loadAddon(addon); term.open(host.current!); terminal.current = term; fit.current = addon;
-    const copySelection = () => {
-      if (term.hasSelection()) {
-        send({ type: 'copy', id: lane.processId, text: term.getSelection() });
-        return;
-      }
-      // Pi's fullscreen UI owns mouse selection. xterm has no selection to copy,
-      // so ask Pi to copy its active selection using its default Ctrl+X binding.
-      if (live.current && agent.current === 'Pi' && term.modes.mouseTrackingMode !== 'none') {
-        send({ type: 'input', id: lane.processId, data: '\x18' });
-      }
-    };
+    const copySelection = () => send({ type: 'copy', id: lane.processId, text: term.getSelection() });
     const themeObserver = new MutationObserver(() => {
       term.options.theme = currentTerminalTheme(selection.current);
       const nextFont = fontFamily();

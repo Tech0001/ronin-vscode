@@ -7,6 +7,7 @@ import { Lane, TerminalSelectionStyle } from './shared';
 import { quoteTerminalPaths, terminalFileTarget } from './terminalFiles';
 import { readFilePreview } from './readFilePreview';
 import { terminalColorOptions } from './terminalTheme';
+import { terminalCopyAction } from './terminalCopy';
 import { ESCAPE_SEQUENCE, SHIFT_ENTER_SEQUENCE } from './terminalShortcuts';
 import { TerminalServiceClient } from './terminalService/client';
 import { RemoteTerminal, ServiceEvent } from './terminalService/protocol';
@@ -282,7 +283,11 @@ export class Ronin {
       if (m.focused) this.focusedId = m.id;
       await vscode.commands.executeCommand('setContext', 'ronin.terminalFocused', Boolean(m.focused));
     }
-    if (m.type === 'copy' && typeof m.text === 'string') await vscode.env.clipboard.writeText(m.text);
+    if (m.type === 'copy' && typeof m.text === 'string') {
+      const action = await terminalCopyAction(m.text, this.sessions.get(m.id)?.pty.pid);
+      if (action === 'clipboard') await vscode.env.clipboard.writeText(m.text);
+      if (action === 'pi') this.write(m.id, '\x18');
+    }
     if (m.type === 'pasteRequest') this.send({ type: 'paste', id: m.id, data: await vscode.env.clipboard.readText() });
     if (m.type === 'attached') {
       this.attached.add(m.id);
