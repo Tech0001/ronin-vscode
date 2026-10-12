@@ -5,3 +5,4 @@ release/
 *.log
 # Local troubleshooting notes, not part of the public source distribution.
 TERMINAL-HOTFIX.md
+/.ori
