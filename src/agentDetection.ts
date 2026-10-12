@@ -5,7 +5,7 @@ import { join } from 'node:path';
 
 const runFile = promisify(execFile);
 
-const agents: Record<string, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini', aider: 'Aider', opencode: 'OpenCode', goose: 'Goose', 'cursor-agent': 'Cursor' };
+const agents: Record<string, string> = { claude: 'Claude', codex: 'Codex', pi: 'Pi', gemini: 'Gemini', aider: 'Aider', opencode: 'OpenCode', goose: 'Goose', 'cursor-agent': 'Cursor' };
 export function agentFromArgv(argv: string[]): string | undefined {
   const base = (value: string) => value.replace(/\\/g, '/').split('/').pop()!.toLowerCase().replace(/\.exe$/, '');
   const executable = base(argv[0] ?? '');

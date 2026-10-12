@@ -3,6 +3,7 @@ import { agentFromArgv } from './agentDetection';
 it('recognizes native agent executables and runtime launchers', () => {
   expect(agentFromArgv(['/some/path/claude', '--resume'])).toBe('Claude');
   expect(agentFromArgv(['/some/path/codex'])).toBe('Codex');
+  expect(agentFromArgv(['/some/path/pi', '--resume'])).toBe('Pi');
   expect(agentFromArgv(['node', '/opt/node_modules/@anthropic-ai/claude-code/cli.js'])).toBe('Claude');
   expect(agentFromArgv(['node', '/opt/node_modules/@openai/codex/bin/codex.js'])).toBe('Codex');
 });

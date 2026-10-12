@@ -32,6 +32,7 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
   const terminal = useRef<Terminal | null>(null);
   const fit = useRef<FitAddon | null>(null);
   const live = useRef(running); live.current = running;
+  const agent = useRef(lane.agentName); agent.current = lane.agentName;
   const selection = useRef(selectionStyle); selection.current = selectionStyle;
   useEffect(() => {
     const fontFamily = () => getComputedStyle(document.body).getPropertyValue('--vscode-editor-font-family').trim() || 'monospace';
@@ -45,6 +46,17 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
       }
     });
     const addon = new FitAddon(); term.loadAddon(addon); term.open(host.current!); terminal.current = term; fit.current = addon;
+    const copySelection = () => {
+      if (term.hasSelection()) {
+        send({ type: 'copy', id: lane.processId, text: term.getSelection() });
+        return;
+      }
+      // Pi's fullscreen UI owns mouse selection. xterm has no selection to copy,
+      // so ask Pi to copy its active selection using its default Ctrl+X binding.
+      if (live.current && agent.current === 'Pi' && term.modes.mouseTrackingMode !== 'none') {
+        send({ type: 'input', id: lane.processId, data: '\x18' });
+      }
+    };
     const themeObserver = new MutationObserver(() => {
       term.options.theme = currentTerminalTheme(selection.current);
       const nextFont = fontFamily();
@@ -59,7 +71,7 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
         if (action === 'interrupt' && live.current) send({ type: 'input', id: lane.processId, data: '\x03' });
         if (action === 'shiftEnter' && live.current) send({ type: 'input', id: lane.processId, data: SHIFT_ENTER_SEQUENCE });
         if (action === 'escape' && live.current) send({ type: 'input', id: lane.processId, data: ESCAPE_SEQUENCE });
-        if (action === 'copy') send({ type: 'copy', id: lane.processId, text: term.getSelection() });
+        if (action === 'copy') copySelection();
         if (action === 'paste') send({ type: 'pasteRequest', id: lane.processId });
       }
       return false;
@@ -99,7 +111,7 @@ function TerminalView({ lane, running, fontSize, terminalColors, selectionStyle 
       if (['reset', 'replay', 'output'].includes(m.type)) { renderQueue.push(m); renderNext(); }
       if (m.type === 'paste' && live.current) { term.paste(m.data); term.focus(); }
       if (m.type === 'focusTerminal') term.focus();
-      if (m.type === 'copyRequest') send({ type: 'copy', id: lane.processId, text: term.getSelection() });
+      if (m.type === 'copyRequest') copySelection();
     };
     window.addEventListener('message', listener);
     send({ type: 'attached', id: lane.processId });
